@@ -14,6 +14,7 @@ const miniMap = $('miniMap');
 const modal = $('modal');
 const toastEl = $('toast');
 const itemDock = $('itemDock');
+const bagFloatBtn = $('btnBagFloat');
 const nextRoomBtn = $('btnNextRoom') || (()=>{ const b=document.createElement('button'); b.id='btnNextRoom'; b.className='nextRoomBtn hidden'; b.textContent='进门 / 下一房间'; document.getElementById('gameWrap').appendChild(b); return b; })();
 
 const R = Math.random;
@@ -288,6 +289,7 @@ function resetRun(saved){
   generateFloor();
   state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false;
   updateItemDock();
+  if(bagFloatBtn) bagFloatBtn.classList.remove('hidden');
   showToast(saved ? '已读取轻量存档：从本层入口继续。出生房通常没怪，走进门才刷怪。' : '新局开始：出生房没怪，贴门或点“进门 / 下一房间”都会进入战斗房。', 3600);
 }
 
@@ -1277,25 +1279,85 @@ function drawEnemies(){
 }
 function drawPlayer(){
   const p=state.player; if(!p) return;
-  const bob = Math.sin(now()*7)*1.6;
-  ctx.save(); ctx.globalAlpha=.24; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*.86, p.r*.92, p.r*.38, 0, 0, TAU); ctx.fill(); ctx.restore();
-  for(let i=0;i<p.orbitals;i++){ const o=orbitalPos(i,p.orbitals); if(!drawSprite('orbital',o.x,o.y,2.05)) { ctx.fillStyle=p.flags.orbitBlock?'#fff0a6':'#d7b7ff'; circle(o.x,o.y,12); } }
-  for(let i=0;i<p.familiars;i++){ const a=now()*1.5 + i/Math.max(1,p.familiars)*TAU; const x=p.x+Math.cos(a)*52, y=p.y+Math.sin(a)*34 + Math.sin(now()*6+i)*1.2; if(!drawSprite(p.flags.holySpark?'orbital':'familiar',x,y,1.85)) { ctx.fillStyle=p.flags.holySpark?'#fff2a9':'#b78cff'; circle(x,y,10); } }
-  ctx.save(); ctx.translate(p.x,p.y+bob); ctx.globalAlpha=p.inv>0 ? .55 + Math.sin(now()*40)*.25 : 1;
+  const bob = Math.sin(now()*7)*1.45;
+  // 柔和地面阴影，让角色像站在地牢里，不像一个平面图标
+  ctx.save();
+  ctx.globalAlpha=.28; ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*1.02, p.r*1.02, p.r*.34, 0, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  for(let i=0;i<p.orbitals;i++){
+    const o=orbitalPos(i,p.orbitals);
+    if(!drawSprite('orbital',o.x,o.y,2.05)) { ctx.fillStyle=p.flags.orbitBlock?'#fff0a6':'#d7b7ff'; circle(o.x,o.y,12); }
+  }
+  for(let i=0;i<p.familiars;i++){
+    const a=now()*1.5 + i/Math.max(1,p.familiars)*TAU;
+    const x=p.x+Math.cos(a)*52, y=p.y+Math.sin(a)*34 + Math.sin(now()*6+i)*1.2;
+    if(!drawSprite(p.flags.holySpark?'orbital':'familiar',x,y,1.85)) { ctx.fillStyle=p.flags.holySpark?'#fff2a9':'#b78cff'; circle(x,y,10); }
+  }
+
+  ctx.save();
+  ctx.translate(p.x,p.y+bob);
+  ctx.globalAlpha=p.inv>0 ? .55 + Math.sin(now()*40)*.25 : 1;
   if(p.shadow>0){ ctx.globalAlpha*=.75; }
-  const skin=p.shadow>0?'#5e4c69':'#ffd0a6', body=p.shadow>0?'#493a58':'#7ed7ff', shoe=p.shadow>0?'#2f2638':'#5b3d62';
-  ctx.fillStyle=shoe; roundedRect(-11,p.r*.46,8,9,4,true); roundedRect(3,p.r*.46,8,9,4,true);
-  ctx.fillStyle=body; roundedRect(-13,2,26,24,10,true);
-  ctx.fillStyle='rgba(255,255,255,.24)'; roundedRect(-8,6,7,12,4,true);
-  ctx.fillStyle=skin; circle(0,-10,18);
-  ctx.fillStyle='#7b4c36'; ctx.beginPath(); ctx.arc(0,-19,17,Math.PI*.05,Math.PI*.95,true); ctx.lineTo(-15,-10); ctx.quadraticCurveTo(0,-3,15,-10); ctx.fill();
-  ctx.fillStyle=body; roundedRect(-19,2,7,16,5,true); roundedRect(12,2,7,16,5,true);
-  ctx.fillStyle='#211727'; circle(-6,-11,2.7); circle(6,-11,2.7);
-  ctx.fillStyle='rgba(255,255,255,.85)'; circle(-7,-12,1); circle(5,-12,1);
-  ctx.strokeStyle='#6b3a44'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-4,5,.2,Math.PI-.2); ctx.stroke();
-  ctx.fillStyle='rgba(255,132,159,.35)'; circle(-11,-5,3.2); circle(11,-5,3.2);
-  if(p.mantleReady){ ctx.strokeStyle='#fff0a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+8,0,TAU); ctx.stroke(); }
-  if(p.roomShield){ ctx.strokeStyle='#9ad2ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+12,0,TAU); ctx.stroke(); }
+
+  const skin=p.shadow>0?'#b9a3c7':'#ffd6b2';
+  const hood=p.shadow>0?'#5f4d76':'#8ad8ff';
+  const hoodDark=p.shadow>0?'#3d314f':'#4c95c8';
+  const body=p.shadow>0?'#514264':'#ffb6d4';
+  const shoe=p.shadow>0?'#282235':'#553a67';
+  const hair=p.shadow>0?'#44324f':'#7b513f';
+
+  // 小短腿和鞋：先画脚，明确不是奇怪椭圆
+  ctx.fillStyle=shoe;
+  roundedRect(-12,p.r*.66,9,7,4,true);
+  roundedRect(3,p.r*.66,9,7,4,true);
+  ctx.fillStyle=hoodDark;
+  roundedRect(-10,p.r*.38,6,12,4,true);
+  roundedRect(4,p.r*.38,6,12,4,true);
+
+  // 身体：小斗篷/小外套
+  ctx.fillStyle=body;
+  roundedRect(-15,1,30,27,12,true);
+  ctx.fillStyle='rgba(255,255,255,.22)';
+  roundedRect(-9,5,7,14,4,true);
+  ctx.fillStyle=hoodDark;
+  roundedRect(-18,5,7,17,5,true);
+  roundedRect(11,5,7,17,5,true);
+  ctx.fillStyle=skin;
+  circle(-17,21,3.6); circle(17,21,3.6);
+
+  // 大帽兜 + 圆脸，走可爱小豆丁方向
+  ctx.fillStyle=hood;
+  circle(0,-10,22);
+  ctx.fillStyle=skin;
+  circle(0,-8,17.5);
+
+  // 刘海/小呆毛
+  ctx.fillStyle=hair;
+  ctx.beginPath();
+  ctx.arc(0,-19,15.5,Math.PI*.08,Math.PI*.92,true);
+  ctx.lineTo(-12,-10);
+  ctx.quadraticCurveTo(-5,-15,0,-10);
+  ctx.quadraticCurveTo(5,-15,12,-10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle=hair; ctx.lineWidth=3; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-32); ctx.quadraticCurveTo(6,-38,11,-33); ctx.stroke();
+
+  // 表情：更萌更清楚
+  ctx.fillStyle='#241725';
+  circle(-6,-9,2.8); circle(6,-9,2.8);
+  ctx.fillStyle='rgba(255,255,255,.92)';
+  circle(-7,-10,1); circle(5,-10,1);
+  ctx.strokeStyle='#7a4550'; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.arc(0,-3,5,.25,Math.PI-.25); ctx.stroke();
+  ctx.fillStyle='rgba(255,132,159,.36)';
+  circle(-11,-4,3.2); circle(11,-4,3.2);
+
+  // 外圈特效
+  if(p.mantleReady){ ctx.strokeStyle='#fff0a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+11,0,TAU); ctx.stroke(); }
+  if(p.roomShield){ ctx.strokeStyle='#9ad2ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+14,0,TAU); ctx.stroke(); }
   ctx.restore();
 }
 function orbitalPos(i,n){ const p=state.player; const a=now()*2.6 + i/n*TAU; return {x:p.x+Math.cos(a)*46,y:p.y+Math.sin(a)*46}; }
@@ -1394,7 +1456,8 @@ makeStick($('leftStick'), input.move); makeStick($('rightStick'), input.aim);
 $('btnPause').onclick=togglePause;
 $('btnMap').onclick=()=>{ miniMap.classList.toggle('hidden'); updateMiniMap(); };
 $('btnAuto').onclick=()=>{ input.auto=!input.auto; $('btnAuto').classList.toggle('active',input.auto); showToast(input.auto?'自动射击已开':'自动射击已关'); };
-if($('btnBag')) $('btnBag').onclick=showBag;
+if($('btnBag')) $('btnBag').onclick=()=>showBag('current');
+if(bagFloatBtn) bagFloatBtn.onclick=()=>showBag('current');
 if($('btnMusic')){ $('btnMusic').onclick=()=>setMusic(!audioSys.music); $('btnMusic').textContent=localStorage.getItem('cute-abyss-bgm')==='1'?'BGM开':'BGM关'; $('btnMusic').classList.toggle('active',localStorage.getItem('cute-abyss-bgm')==='1'); }
 nextRoomBtn.onclick=()=>{ const d=bestNextRoom(); if(d) moveToRoom(d.k,d.px,d.py); else showToast(state.room?.cleared?'附近没有可进房间。':'清完怪门才会打开。'); };
 function togglePause(){ if(state.inModal || state.mode!=='play') return; state.paused=!state.paused; $('btnPause').textContent=state.paused?'继续':'暂停'; }
