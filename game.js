@@ -208,7 +208,7 @@ function resetRun(saved){
   state.runStart = Date.now();
   generateFloor();
   state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false;
-  showToast(saved ? '已读取轻量存档：从本层入口继续' : '新局开始：保护红心，冲强力特殊房！', 2200);
+  showToast(saved ? '已读取轻量存档：从本层入口继续。出生房通常没怪，走进门才刷怪。' : '新局开始：出生房没怪，往右边金色门走，第一战斗房会刷怪！', 3600);
 }
 
 function saveRun(){
@@ -365,6 +365,9 @@ function generateFloor(){
   if(rest.length){ pick(rest).type='treasure'; }
   if(rest.length>2){ let s; do{s=pick(rest)}while(s.type!=='normal'); s.type='shop'; }
   if(rest.length>5){ let c; do{c=pick(rest)}while(c.type!=='normal'); c.type='curse'; }
+  // 新手体验修复：开局出生房是安全房，但右侧一定接一个战斗房。
+  // 这样玩家不会误以为“没有怪物”，往右走进门马上开打。
+  state.rooms.set('1,0',{x:1,y:0,type:'normal',visited:false,cleared:false,looted:false,enemies:[],obstacles:[],tutorial:true});
   enterRoom('0,0', true);
   const p = state.player;
   p.x=W/2; p.y=H/2; p.mantleReady=!!p.flags.mantle; p.roomShield=p.flags.roomShield?1:0;
@@ -959,6 +962,27 @@ function drawRoom(){
   ctx.fillStyle='#fff'; ctx.globalAlpha=.08; ctx.font='900 82px sans-serif'; ctx.textAlign='center';
   const mark = r?.type==='boss'?'BOSS':r?.type==='treasure'?'宝':r?.type==='shop'?'店':r?.type==='curse'?'咒':'地牢';
   ctx.fillText(mark,W/2,H/2+24); ctx.globalAlpha=1;
+  if(r?.type==='start'){
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.92)';
+    ctx.font='900 24px sans-serif';
+    ctx.fillText('出生房是安全房：往右边金色门走，进下一房间才会刷怪', W/2, 118);
+    ctx.fillStyle='#ffd36f';
+    ctx.font='900 54px sans-serif';
+    ctx.fillText('➜', W-92, H/2+16);
+    ctx.font='900 16px sans-serif';
+    ctx.fillText('第一战斗房', W-100, H/2+58);
+    ctx.restore();
+  }
+  if(r?.tutorial){
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.fillStyle='rgba(255,255,255,.86)';
+    ctx.font='900 20px sans-serif';
+    ctx.fillText('战斗房：清掉小怪，门才会再次打开', W/2, 112);
+    ctx.restore();
+  }
 }
 function drawDoors(){
   if(!state.room) return;
