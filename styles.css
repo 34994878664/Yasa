@@ -4,3 +4,7 @@
 /* 手机竖屏保险按钮：不靠找门，点一下直接进入可用房间 */
 .nextRoomBtn{position:absolute;left:50%;bottom:calc(168px + env(safe-area-inset-bottom,0));transform:translateX(-50%);z-index:18;border:2px solid rgba(255,255,255,.25);border-radius:999px;padding:13px 22px;background:linear-gradient(180deg,#ffde78,#e89531);color:#241304;font-size:17px;font-weight:1000;box-shadow:0 8px 0 #8f541d,0 18px 32px rgba(0,0,0,.34);text-shadow:none}.nextRoomBtn:active{transform:translateX(-50%) translateY(4px);box-shadow:0 4px 0 #8f541d,0 14px 24px rgba(0,0,0,.28)}
 @media (orientation:portrait){.nextRoomBtn{bottom:calc(154px + env(safe-area-inset-bottom,0));font-size:16px;padding:12px 19px}.miniMap{opacity:.86}.stick{bottom:calc(16px + env(safe-area-inset-bottom,0))}}
+
+/* 素材包风格版：像素精灵表显示更清楚 */
+canvas{image-rendering:pixelated;image-rendering:crisp-edges}.hud-right{flex-wrap:wrap;justify-content:flex-end}.miniBtn{min-width:54px}
+@media (max-width:760px){.hud-right{max-width:42vw}.miniBtn{font-size:11px;padding:6px 7px;min-width:auto}.toast{top:86px}}
