@@ -13,6 +13,7 @@ const dealLine = $('dealLine');
 const miniMap = $('miniMap');
 const modal = $('modal');
 const toastEl = $('toast');
+const itemDock = $('itemDock');
 const nextRoomBtn = $('btnNextRoom') || (()=>{ const b=document.createElement('button'); b.id='btnNextRoom'; b.className='nextRoomBtn hidden'; b.textContent='进门 / 下一房间'; document.getElementById('gameWrap').appendChild(b); return b; })();
 
 const R = Math.random;
@@ -240,6 +241,7 @@ const ITEMS = [
   {id:'devil_shadow',name:'影子替身',pool:'devil',q:4,cost:2,desc:'濒死时变成影子形态并获得短暂无敌。',e:{flag:{shadowSave:1,devilRoute:1},black:2}},
 ];
 
+const ITEM_MAP = Object.fromEntries(ITEMS.map(it=>[it.id,it]));
 let enemyId = 1;
 
 const input = {
@@ -285,6 +287,7 @@ function resetRun(saved){
   state.runStart = Date.now();
   generateFloor();
   state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false;
+  updateItemDock();
   showToast(saved ? '已读取轻量存档：从本层入口继续。出生房通常没怪，走进门才刷怪。' : '新局开始：出生房没怪，贴门或点“进门 / 下一房间”都会进入战斗房。', 3600);
 }
 
@@ -360,7 +363,95 @@ function applyItem(it){
   p.fireRate = clamp(p.fireRate, .65, 9.5); p.speed = clamp(p.speed, 125, 330); p.range = clamp(p.range, 210, 760);
   if(p.flags.cleanse){ p.flags.lowHpRage = 0; }
   showToast(`获得：${it.name}（${QUALITY[it.q]||'神话'}）`, 1800);
+  updateItemDock();
   saveRun();
+}
+
+
+function itemSymbol(it){
+  const e = it.e || {}, f = e.flag || {};
+  if(e.weapon==='knife') return '🗡';
+  if(e.weapon==='beam') return '━';
+  if(e.weapon==='ring') return '◉';
+  if(it.pool==='angel') return '✦';
+  if(it.pool==='devil') return '♆';
+  if(f.homing) return '↺';
+  if(f.pierce) return '➤';
+  if(f.burn) return '🔥';
+  if(f.freeze) return '❄';
+  if(f.poison) return '☠';
+  if(f.charm) return '❤';
+  if(f.bombHit) return '💣';
+  if(f.holyBeam) return '☼';
+  if(e.familiars) return '◔';
+  if(e.orbitals) return '◎';
+  if(e.maxRed || e.heal) return '♥';
+  if(e.soul) return '🛡';
+  if(e.black) return '♠';
+  if(e.dmg || e.dmgMul) return '⚔';
+  if(e.fireMul) return '✷';
+  if(e.speed) return '➠';
+  if(e.luck) return '☘';
+  return '◆';
+}
+function itemChipHtml(it, big=false){
+  const cls = it.pool==='angel'?'angel':it.pool==='devil'?'devil':it.pool==='boss'?'boss':it.pool==='shop'?'shop':'';
+  return `<div class="itemChip ${cls}" title="${it.name}"><span class="sym">${itemSymbol(it)}</span><span class="tier">${it.q||1}</span></div>`;
+}
+function updateItemDock(){
+  if(!itemDock || !state.player) return;
+  const ids = state.player.items || [];
+  const sig = ids.join('|');
+  if(state._dockSig === sig) return;
+  state._dockSig = sig;
+  if(!ids.length){ itemDock.classList.add('hidden'); itemDock.innerHTML=''; return; }
+  const show = ids.slice(-8);
+  itemDock.classList.remove('hidden');
+  itemDock.innerHTML = show.map(id=> itemChipHtml(ITEM_MAP[id] || {name:id,pool:'treasure',q:1,e:{}}, false)).join('');
+}
+function bagTabs(active){
+  return `<div class="bagTabs">
+    <button class="tabBtn ${active==='current'?'active':''}" data-bag-tab="current">当前BD</button>
+    <button class="tabBtn ${active==='stats'?'active':''}" data-bag-tab="stats">属性面板</button>
+    <button class="tabBtn ${active==='codex'?'active':''}" data-bag-tab="codex">BD图鉴</button>
+  </div>`;
+}
+function showBag(tab='current'){
+  const p = state.player; if(!p) return;
+  const items = (p.items||[]).map(id=>ITEM_MAP[id]).filter(Boolean);
+  const weaponName = ({tear:'眼泪',knife:'飞刃',beam:'光束',ring:'环形激光'}[p.weapon]||'眼泪');
+  const summary = `<div class="bagStats">共 ${items.length} 个BD · 武器：${weaponName} · 实战伤害 ${playerDamageValue().toFixed(1)} · 射速 ${p.fireRate.toFixed(1)} · 移速 ${Math.round(p.speed)}</div>`;
+  let body='';
+  if(tab==='current'){
+    const cards = items.length ? items.map(it=>`<div class="bagCard"><div>${itemChipHtml(it, true)}</div><div class="bagMeta"><div class="q">${QUALITY[it.q]||'普通'} · ${POOL_NAME[it.pool]||'宝物房'}</div><h4>${it.name}</h4><div class="d">${it.desc}</div></div></div>`).join('') : '<p class="smallText">你身上还没有BD道具。先进宝物房、商店、Boss房、天使/恶魔房拿BD。</p>';
+    body = `<div class="bagGrid">${cards}</div>`;
+  } else if(tab==='stats'){
+    const rows = [
+      ['生命', `${Math.ceil(p.red/2)}/${Math.ceil(p.maxRed/2)} 红心 · ${Math.floor(p.soul/2)} 魂心 · ${Math.floor(p.black/2)} 黑心`],
+      ['实战伤害', playerDamageValue().toFixed(2)],
+      ['基础伤害', `${p.damage.toFixed(2)} × ${p.dmgMul.toFixed(2)} + 无伤成长 ${(p.flawlessBonus||0).toFixed(2)}`],
+      ['射速', p.fireRate.toFixed(2)],
+      ['移速', Math.round(p.speed)],
+      ['射程', Math.round(p.range)],
+      ['弹速', Math.round(p.bulletSpeed)],
+      ['多重射击', `${1+p.mult} 发`],
+      ['幸运', p.luck],
+      ['金币/钥匙/炸弹', `${p.coins} / ${p.keys} / ${p.bombs}`],
+      ['特殊房', `本层红伤：${state.floorRedDamage?'有':'无'} · Boss红伤：${state.bossRedDamage?'有':'无'} · 约 ${calcDealPreview()}%`]
+    ].map(([k,v])=>`<div class="statRow"><b>${k}</b><span>${v}</span></div>`).join('');
+    const flags = Object.keys(p.flags||{}).filter(k=>p.flags[k]).map(k=>`<span class="flagPill">${k}×${p.flags[k]}</span>`).join('') || '<span class="smallText">暂无特殊词条</span>';
+    body = `<div class="statPanel">${rows}</div><h3>特殊词条</h3><div class="flagWrap">${flags}</div><p class="smallText">说明：这里的“实战伤害”会把高血增伤、低血狂暴、金币增伤、Boss增伤等动态BD算进去。</p>`;
+  } else {
+    const pools = ['treasure','boss','angel','devil','shop'];
+    body = pools.map(pool=>{
+      const arr = ITEMS.filter(it=>it.pool===pool);
+      const cells = arr.map(it=>`<div class="codexCell ${pool}">${itemChipHtml(it,true)}<div><b>${it.name}</b><p>${QUALITY[it.q]||'普通'} · ${it.desc}</p></div></div>`).join('');
+      return `<h3>${POOL_NAME[pool]||pool} · ${arr.length}个</h3><div class="codexGrid">${cells}</div>`;
+    }).join('');
+  }
+  showModal(`<div class="bagTop"><h2>BD系统</h2>${summary}</div>${bagTabs(tab)}${body}<div class="row" style="margin-top:14px"><button class="bigBtn secondary" data-close-bag="1">关闭</button></div>`);
+  modal.querySelectorAll('[data-bag-tab]').forEach(btn=>btn.onclick=()=>showBag(btn.dataset.bagTab));
+  modal.querySelector('[data-close-bag]').onclick=()=>closeModal();
 }
 
 function showModal(html){
@@ -377,6 +468,7 @@ function itemCard(it, kind, costText='', disabled=false){
   const cls = kind==='angel'?'angel':kind==='devil'?'devil':'';
   const cost = costText ? `<div class="cost">${costText}</div>` : '';
   return `<div class="choiceCard ${cls}">
+    <div class="choiceIcon">${itemChipHtml(it,true)}</div>
     <div class="q">${QUALITY[it.q] || '神话'} · ${POOL_NAME[it.pool]}</div>
     <h3>${it.name}</h3>
     <div class="d">${it.desc}</div>${cost}
@@ -1124,16 +1216,58 @@ function drawObstacles(){
     }
   }
 }
+function drawCuteEnemy(e){
+  const r=e.r, t=e.type, boss=e.boss;
+  let col='#b579ff';
+  if(t==='fly') col='#72d6ff'; if(t==='spitter') col='#91e379'; if(t==='charger') col='#ffca66'; if(t==='splitter') col='#ff91df'; if(t==='ghost') col='#c8ddff'; if(t==='bomber') col='#d4a15c'; if(t==='shield') col='#a798ff';
+  if(boss) col = e.bossType==='boss_candle'?'#ffe6a3':e.bossType==='boss_heart'?'#ff5c7d':e.bossType==='boss_chest'?'#d7a86d':'#ff8fab';
+  if(e.flash>0) col='#fff';
+  ctx.save();
+  if(boss){
+    ctx.fillStyle=col; blob(0,0,r,10); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.18)'; circle(-r*.25,-r*.32,r*.28);
+    ctx.fillStyle='#241725'; circle(-r*.28,-r*.12,r*.10); circle(r*.28,-r*.12,r*.10);
+    ctx.lineWidth=4; ctx.strokeStyle='#241725'; ctx.beginPath(); ctx.arc(0,r*.12,r*.28,.15,Math.PI-.15); ctx.stroke();
+    if(e.bossType==='boss_candle'){ ctx.fillStyle='#ff8b34'; tri(0,-r*1.08,-r*.18,-r*.58,r*.18,-r*.58); ctx.fillStyle='#fff0a6'; circle(0,-r*.55,r*.18); }
+    if(e.bossType==='boss_twins'){ ctx.fillStyle='rgba(255,255,255,.22)'; circle(-r*.62,r*.05,r*.32); circle(r*.62,r*.05,r*.32); }
+    if(e.bossType==='boss_chest'){ ctx.strokeStyle='#5b3218'; ctx.lineWidth=6; ctx.strokeRect(-r*.72,-r*.18,r*1.44,r*.72); ctx.fillStyle='#ffd36f'; roundedRect(-r*.15,r*.05,r*.3,r*.22,4,true); }
+    if(e.bossType==='boss_heart'){ ctx.fillStyle='rgba(255,255,255,.2)'; circle(-r*.18,-r*.18,r*.22); }
+    ctx.restore(); return;
+  }
+  if(t==='fly'){
+    ctx.fillStyle='rgba(188,240,255,.55)'; ctx.beginPath(); ctx.ellipse(-r*.62,-r*.1,r*.42,r*.32,-.5,0,TAU); ctx.fill(); ctx.beginPath(); ctx.ellipse(r*.62,-r*.1,r*.42,r*.32,.5,0,TAU); ctx.fill();
+    ctx.fillStyle=col; circle(0,0,r*.72);
+  } else if(t==='ghost'){
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(0,-r*.1,r*.74,Math.PI,0); ctx.lineTo(r*.72,r*.48); for(let i=0;i<4;i++){ const x=r*.72-i*r*.48; ctx.quadraticCurveTo(x-r*.12,r*.72,x-r*.24,r*.48); } ctx.closePath(); ctx.fill();
+  } else if(t==='splitter'){
+    ctx.fillStyle=col; circle(-r*.28,0,r*.58); circle(r*.28,0,r*.58); ctx.fillStyle='rgba(255,255,255,.22)'; circle(-r*.45,-r*.22,r*.16); circle(r*.15,-r*.24,r*.16);
+  } else if(t==='bomber'){
+    ctx.fillStyle=col; blob(0,0,r*.78,7); ctx.fill(); ctx.fillStyle='#2b2530'; circle(r*.45,-r*.45,r*.22); ctx.strokeStyle='#ffdf78'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(r*.54,-r*.6); ctx.quadraticCurveTo(r*.88,-r*.92,r*.62,-r*1.08); ctx.stroke();
+  } else if(t==='charger'){
+    ctx.fillStyle='#ffe19a'; tri(-r*.56,-r*.52,-r*.9,-r*.92,-r*.35,-r*.68); tri(r*.56,-r*.52,r*.9,-r*.92,r*.35,-r*.68); ctx.fillStyle=col; blob(0,0,r*.83,6); ctx.fill();
+  } else if(t==='shield'){
+    ctx.fillStyle=col; circle(0,0,r*.82); ctx.strokeStyle='#f6efff'; ctx.lineWidth=5; ctx.beginPath(); ctx.arc(0,0,r*.55,0,TAU); ctx.stroke();
+  } else if(t==='spitter'){
+    ctx.fillStyle=col; blob(0,0,r*.82,7); ctx.fill(); ctx.fillStyle='#3d2736'; roundedRect(-r*.22,r*.2,r*.44,r*.18,4,true);
+  } else {
+    ctx.fillStyle=col; blob(0,0,r*.82,6); ctx.fill();
+  }
+  if(t!=='ghost' && t!=='fly'){
+    ctx.fillStyle='rgba(35,22,39,.9)'; roundedRect(-r*.36,r*.48,r*.18,r*.30,5,true); roundedRect(r*.18,r*.48,r*.18,r*.30,5,true);
+  }
+  ctx.fillStyle='#211727'; circle(-r*.28,-r*.12,r*.10); circle(r*.28,-r*.12,r*.10);
+  ctx.fillStyle='rgba(255,255,255,.65)'; circle(-r*.31,-r*.16,r*.035); circle(r*.25,-r*.16,r*.035);
+  ctx.restore();
+}
 function drawEnemies(){
   for(const e of state.room?.enemies || []){
     if(e.dead) continue;
-    ctx.save(); ctx.translate(e.x,e.y);
+    const bob = e.boss ? Math.sin(now()*3 + e.id)*2 : Math.sin(now()*5 + e.id)*1.6;
+    ctx.save(); ctx.globalAlpha=.22; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r*.72, e.r*.82, e.r*.34, 0, 0, TAU); ctx.fill(); ctx.restore();
+    ctx.save(); ctx.translate(e.x,e.y+bob);
     ctx.globalAlpha = e.status.freeze>0?.58:1;
     if(e.flash>0){ ctx.fillStyle='rgba(255,255,255,.85)'; circle(0,0,e.r+7); }
-    const sc = e.boss ? 5.7 : clamp(e.r/6.2,2.25,3.45);
-    if(!drawSprite(enemySprite(e),0,0,sc,0,1)){
-      let col='#b579ff'; if(e.type==='fly') col='#72d6ff'; if(e.type==='spitter') col='#91e379'; if(e.type==='charger') col='#ffca66'; if(e.type==='splitter') col='#ff91df'; if(e.type==='ghost') col='#c8ddff'; if(e.type==='bomber') col='#d4a15c'; if(e.type==='shield') col='#a798ff'; if(e.boss) col = e.bossType==='boss_candle'?'#ffe6a3':e.bossType==='boss_heart'?'#ff5c7d':'#ff8fab'; ctx.fillStyle=e.flash>0?'#fff':col; blob(0,0,e.r,e.boss?8:5); ctx.fill(); ctx.fillStyle='#211727'; circle(-e.r*.35,-e.r*.12,e.r*.17); circle(e.r*.35,-e.r*.12,e.r*.17);
-    }
+    drawCuteEnemy(e);
     if(e.boss){ ctx.fillStyle='#fff'; ctx.font='900 13px sans-serif'; ctx.textAlign='center'; ctx.fillText(e.name,0,-e.r-16); }
     if(e.status.poison>0){ ctx.strokeStyle='#64e36d'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(0,0,e.r+5,0,TAU); ctx.stroke(); }
     if(e.status.burn>0){ ctx.strokeStyle='#ff8b34'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,e.r+8,0,TAU); ctx.stroke(); }
@@ -1143,11 +1277,23 @@ function drawEnemies(){
 }
 function drawPlayer(){
   const p=state.player; if(!p) return;
+  const bob = Math.sin(now()*7)*1.6;
+  ctx.save(); ctx.globalAlpha=.24; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*.86, p.r*.92, p.r*.38, 0, 0, TAU); ctx.fill(); ctx.restore();
   for(let i=0;i<p.orbitals;i++){ const o=orbitalPos(i,p.orbitals); if(!drawSprite('orbital',o.x,o.y,2.05)) { ctx.fillStyle=p.flags.orbitBlock?'#fff0a6':'#d7b7ff'; circle(o.x,o.y,12); } }
-  for(let i=0;i<p.familiars;i++){ const a=now()*1.5 + i/Math.max(1,p.familiars)*TAU; const x=p.x+Math.cos(a)*52, y=p.y+Math.sin(a)*34; if(!drawSprite(p.flags.holySpark?'orbital':'familiar',x,y,1.85)) { ctx.fillStyle=p.flags.holySpark?'#fff2a9':'#b78cff'; circle(x,y,10); } }
-  ctx.save(); ctx.translate(p.x,p.y); ctx.globalAlpha=p.inv>0 ? .55 + Math.sin(now()*40)*.25 : 1;
-  if(p.shadow>0){ ctx.globalAlpha*=.75; ctx.fillStyle='#3d314e'; circle(0,0,p.r+5); }
-  if(!drawSprite('hero',0,0,3.25)) { ctx.fillStyle=p.shadow>0?'#3d314e':'#f2c49e'; blob(0,0,p.r,6); ctx.fill(); ctx.fillStyle='#211727'; circle(-6,-3,3.5); circle(6,-3,3.5); }
+  for(let i=0;i<p.familiars;i++){ const a=now()*1.5 + i/Math.max(1,p.familiars)*TAU; const x=p.x+Math.cos(a)*52, y=p.y+Math.sin(a)*34 + Math.sin(now()*6+i)*1.2; if(!drawSprite(p.flags.holySpark?'orbital':'familiar',x,y,1.85)) { ctx.fillStyle=p.flags.holySpark?'#fff2a9':'#b78cff'; circle(x,y,10); } }
+  ctx.save(); ctx.translate(p.x,p.y+bob); ctx.globalAlpha=p.inv>0 ? .55 + Math.sin(now()*40)*.25 : 1;
+  if(p.shadow>0){ ctx.globalAlpha*=.75; }
+  const skin=p.shadow>0?'#5e4c69':'#ffd0a6', body=p.shadow>0?'#493a58':'#7ed7ff', shoe=p.shadow>0?'#2f2638':'#5b3d62';
+  ctx.fillStyle=shoe; roundedRect(-11,p.r*.46,8,9,4,true); roundedRect(3,p.r*.46,8,9,4,true);
+  ctx.fillStyle=body; roundedRect(-13,2,26,24,10,true);
+  ctx.fillStyle='rgba(255,255,255,.24)'; roundedRect(-8,6,7,12,4,true);
+  ctx.fillStyle=skin; circle(0,-10,18);
+  ctx.fillStyle='#7b4c36'; ctx.beginPath(); ctx.arc(0,-19,17,Math.PI*.05,Math.PI*.95,true); ctx.lineTo(-15,-10); ctx.quadraticCurveTo(0,-3,15,-10); ctx.fill();
+  ctx.fillStyle=body; roundedRect(-19,2,7,16,5,true); roundedRect(12,2,7,16,5,true);
+  ctx.fillStyle='#211727'; circle(-6,-11,2.7); circle(6,-11,2.7);
+  ctx.fillStyle='rgba(255,255,255,.85)'; circle(-7,-12,1); circle(5,-12,1);
+  ctx.strokeStyle='#6b3a44'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,-4,5,.2,Math.PI-.2); ctx.stroke();
+  ctx.fillStyle='rgba(255,132,159,.35)'; circle(-11,-5,3.2); circle(11,-5,3.2);
   if(p.mantleReady){ ctx.strokeStyle='#fff0a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+8,0,TAU); ctx.stroke(); }
   if(p.roomShield){ ctx.strokeStyle='#9ad2ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+12,0,TAU); ctx.stroke(); }
   ctx.restore();
@@ -1211,6 +1357,7 @@ function updateHud(){
   hudHearts.innerHTML = '❤'.repeat(fullRed) + (halfRed?'♡':'') + '<span style="opacity:.25">'+'❤'.repeat(empty)+'</span>' + ' 💙'.repeat(Math.floor(p.soul/2)) + (p.black? ' 🖤'.repeat(Math.floor(p.black/2)) : '');
   statsLine.textContent = `层 ${state.floor}/${state.maxFloor} · ${POOL_NAME[state.room?.type]||'房间'} · 金币 ${p.coins} 钥匙 ${p.keys} 炸弹 ${p.bombs} · BD ${p.items.length}`;
   const d = calcDealPreview(); dealLine.textContent = `特殊房约 ${d}% · 本层红心伤害：${state.floorRedDamage?'有':'无'} · Boss红伤：${state.bossRedDamage?'有':'无'}`;
+  updateItemDock();
 }
 function calcDealPreview(){
   const p=state.player || {luck:0,flags:{}}; let val=8+p.luck*2; if(!state.floorRedDamage) val+=62; if(!state.bossRedDamage) val+=20; if(p.flags.compass) val+=10; if(p.flags.goatHead) val=96; if(state.seenDealLast) val*=.35; else if(state.seenDealTwo) val*=.65; return clamp(Math.round(val),5,96);
@@ -1247,6 +1394,7 @@ makeStick($('leftStick'), input.move); makeStick($('rightStick'), input.aim);
 $('btnPause').onclick=togglePause;
 $('btnMap').onclick=()=>{ miniMap.classList.toggle('hidden'); updateMiniMap(); };
 $('btnAuto').onclick=()=>{ input.auto=!input.auto; $('btnAuto').classList.toggle('active',input.auto); showToast(input.auto?'自动射击已开':'自动射击已关'); };
+if($('btnBag')) $('btnBag').onclick=showBag;
 if($('btnMusic')){ $('btnMusic').onclick=()=>setMusic(!audioSys.music); $('btnMusic').textContent=localStorage.getItem('cute-abyss-bgm')==='1'?'BGM开':'BGM关'; $('btnMusic').classList.toggle('active',localStorage.getItem('cute-abyss-bgm')==='1'); }
 nextRoomBtn.onclick=()=>{ const d=bestNextRoom(); if(d) moveToRoom(d.k,d.px,d.py); else showToast(state.room?.cleared?'附近没有可进房间。':'清完怪门才会打开。'); };
 function togglePause(){ if(state.inModal || state.mode!=='play') return; state.paused=!state.paused; $('btnPause').textContent=state.paused?'继续':'暂停'; }
@@ -1262,7 +1410,7 @@ function showGuide(){
     <div class="guideBox"><h3>操作</h3><p>手机：左摇杆移动，右摇杆射击。默认自动瞄准，朋友用手机点开也能玩。</p><p>电脑：<span class="kbd">WASD</span>移动，鼠标按住/方向键辅助瞄准，<span class="kbd">Space</span>暂停。</p></div>
     <div class="guideBox"><h3>道具数量</h3><p>当前内置 ${ITEMS.length} 个道具，包含飞刃、光束、环形激光、多重、穿透、追踪、毒火冰、跟班、环绕物、低血狂暴、高血量增伤、无伤成长、复活等BD。</p></div>
   </div><h3>全部道具</h3><div class="itemList">${list}</div><div class="row" style="margin-top:14px"><button class="bigBtn" data-back-menu="1">返回</button></div>`);
-  modal.querySelector('[data-back-menu]').onclick=()=>location.reload();
+  modal.querySelector('[data-back-menu]').onclick=()=>{ if(state.mode==='menu') location.reload(); else closeModal(); };
 }
 
 function loop(){
