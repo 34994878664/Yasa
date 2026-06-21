@@ -5,6 +5,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = 960, H = 640;
 const SAVE_KEY = 'cute-abyss-save-v1';
+const GAME_VERSION = 'v7-deeper-synergy';
 
 const $ = (id) => document.getElementById(id);
 const hudHearts = $('hearts');
@@ -243,6 +244,37 @@ const ITEMS = [
 ];
 
 const ITEM_MAP = Object.fromEntries(ITEMS.map(it=>[it.id,it]));
+
+const SYNERGY_RULES = [
+  {id:'bladeHalo', name:'刃环风暴', test:p=>p.weapon==='knife' && (p.flags.knifeRing||p.flags.starRing), desc:'飞刃命中会炸出小环形激光。'},
+  {id:'brimCircle', name:'光束圆环', test:p=>p.weapon==='beam' && (p.flags.starRing||p.flags.beamFork), desc:'光束更粗，并带分叉/环形增幅。'},
+  {id:'holyMachine', name:'圣电机关', test:p=>p.flags.holyBeam && p.flags.arc, desc:'圣光命中更容易连锁电弧。'},
+  {id:'toxicFire', name:'毒火奶糖', test:p=>p.flags.poison && p.flags.burn, desc:'毒+火叠加后持续伤害更狠，击杀会爆毒火。'},
+  {id:'iceShard', name:'冰裂弹幕', test:p=>p.flags.freeze && p.flags.split, desc:'冻结敌人时额外裂出冰片。'},
+  {id:'greedEngine', name:'贪婪引擎', test:p=>p.flags.coinDamage && (p.flags.discount||p.coins>=15), desc:'金币流派加强，清房/击杀更容易滚资源。'},
+  {id:'blackVamp', name:'黑心吸血', test:p=>p.flags.devilRoute && (p.flags.vampKill||p.flags.blackOnKill||p.flags.lowHpRage), desc:'低血恶魔路线击杀续航更强。'},
+  {id:'seraphGuard', name:'炽天守护', test:p=>p.flags.angelRoute && (p.flags.mantle||p.flags.orbitBlock||p.flags.roomShield), desc:'天使防御路线会给房间护盾和魂心收益。'},
+  {id:'bombStorm', name:'爆爆连锁', test:p=>p.flags.bombHit && (p.mult>=1||p.flags.lung), desc:'多弹/肺/炸弹联动，命中爆炸概率提高。'},
+  {id:'seekingSpear', name:'追踪圣矛', test:p=>p.flags.homing && p.flags.pierce, desc:'追踪+穿透合体，实战伤害提升。'}
+];
+function refreshSynergies(show=false){
+  const p=state.player; if(!p) return;
+  p.synergies = [];
+  for(const k of Object.keys(p.flags||{})) if(k.startsWith('s_')) delete p.flags[k];
+  for(const rule of SYNERGY_RULES){
+    if(rule.test(p)){ p.flags['s_'+rule.id]=1; p.synergies.push(rule); }
+  }
+  if(show && p.synergies.length){
+    const latest = p.synergies[p.synergies.length-1];
+    showToast(`BD协同激活：${latest.name}`, 1700);
+  }
+  if($('btnBag')) $('btnBag').classList.toggle('synergyHot', p.synergies.length>0);
+}
+function synergyHtml(){
+  const p=state.player; const arr=p?.synergies||[];
+  if(!arr.length) return '<p class="smallText">暂无协同。提示：飞刃+环形、毒+火、冻结+分裂、追踪+穿透、天使防御、恶魔低血都能触发协同。</p>';
+  return `<div class="synergyWrap">${arr.map(s=>`<span class="synergyPill">${s.name}</span>`).join('')}</div><p class="smallText">${arr.map(s=>`${s.name}：${s.desc}`).join('｜')}</p>`;
+}
 let enemyId = 1;
 
 const input = {
@@ -287,7 +319,7 @@ function resetRun(saved){
   state.projectiles.length = 0; state.enemyProjectiles.length = 0; state.beams.length = 0; state.particles.length = 0; state.pickups.length = 0;
   state.runStart = Date.now();
   generateFloor();
-  state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false;
+  state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false; if(bagFloatBtn) bagFloatBtn.classList.remove('hidden');
   updateItemDock();
   if(bagFloatBtn) bagFloatBtn.classList.remove('hidden');
   showToast(saved ? '已读取轻量存档：从本层入口继续。出生房通常没怪，走进门才刷怪。' : '新局开始：出生房没怪，贴门或点“进门 / 下一房间”都会进入战斗房。', 3600);
@@ -364,6 +396,7 @@ function applyItem(it){
   p.maxRed = Math.max(2, p.maxRed); p.red = clamp(p.red, 0, p.maxRed);
   p.fireRate = clamp(p.fireRate, .65, 9.5); p.speed = clamp(p.speed, 125, 330); p.range = clamp(p.range, 210, 760);
   if(p.flags.cleanse){ p.flags.lowHpRage = 0; }
+  refreshSynergies(true);
   showToast(`获得：${it.name}（${QUALITY[it.q]||'神话'}）`, 1800);
   updateItemDock();
   saveRun();
@@ -426,7 +459,7 @@ function showBag(tab='current'){
   let body='';
   if(tab==='current'){
     const cards = items.length ? items.map(it=>`<div class="bagCard"><div>${itemChipHtml(it, true)}</div><div class="bagMeta"><div class="q">${QUALITY[it.q]||'普通'} · ${POOL_NAME[it.pool]||'宝物房'}</div><h4>${it.name}</h4><div class="d">${it.desc}</div></div></div>`).join('') : '<p class="smallText">你身上还没有BD道具。先进宝物房、商店、Boss房、天使/恶魔房拿BD。</p>';
-    body = `<div class="bagGrid">${cards}</div>`;
+    body = `<h3>已激活BD协同</h3>${synergyHtml()}<div class="bagGrid">${cards}</div>`;
   } else if(tab==='stats'){
     const rows = [
       ['生命', `${Math.ceil(p.red/2)}/${Math.ceil(p.maxRed/2)} 红心 · ${Math.floor(p.soul/2)} 魂心 · ${Math.floor(p.black/2)} 黑心`],
@@ -442,7 +475,7 @@ function showBag(tab='current'){
       ['特殊房', `本层红伤：${state.floorRedDamage?'有':'无'} · Boss红伤：${state.bossRedDamage?'有':'无'} · 约 ${calcDealPreview()}%`]
     ].map(([k,v])=>`<div class="statRow"><b>${k}</b><span>${v}</span></div>`).join('');
     const flags = Object.keys(p.flags||{}).filter(k=>p.flags[k]).map(k=>`<span class="flagPill">${k}×${p.flags[k]}</span>`).join('') || '<span class="smallText">暂无特殊词条</span>';
-    body = `<div class="statPanel">${rows}</div><h3>特殊词条</h3><div class="flagWrap">${flags}</div><p class="smallText">说明：这里的“实战伤害”会把高血增伤、低血狂暴、金币增伤、Boss增伤等动态BD算进去。</p>`;
+    body = `<div class="statPanel">${rows}</div><h3>已激活BD协同</h3>${synergyHtml()}<h3>特殊词条</h3><div class="flagWrap">${flags}</div><p class="smallText">说明：这里的“实战伤害”会把高血增伤、低血狂暴、金币增伤、Boss增伤、协同增幅等动态BD算进去。</p>`;
   } else {
     const pools = ['treasure','boss','angel','devil','shop'];
     body = pools.map(pool=>{
@@ -490,12 +523,12 @@ function showItemChoice(pool, title, text, opts={}){
       disabled = state.player.maxRed <= c && (state.player.soul + state.player.black) < 6;
     }
     if(opts.shop){
-      const price = Math.max(3, Math.round((it.price || 12) * (state.player.flags.discount ? .72 : 1)));
+      let price = Math.max(3, Math.round((it.price || 12) * (state.player.flags.discount ? .72 : 1) * (opts.sale ? .75 : 1)));
       it._shopPrice = price; costText = `价格：${price}金币`; disabled = state.player.coins < price;
     }
     cards += itemCard(it, opts.devil?'devil':opts.angel?'angel':'', costText, disabled);
   }
-  showModal(`<h2>${title}</h2><p class="smallText">${text}</p><div class="choices">${cards}</div><div class="row" style="margin-top:14px"><button class="bigBtn secondary" data-skip="1">跳过</button></div>`);
+  showModal(`<h2>${title}</h2><p class="smallText">${text}</p><div class="choices">${cards}</div><div class="row" style="margin-top:14px">${opts.allowReroll?'<button class="bigBtn" data-reroll-shop="1">花5金币刷新</button>':''}<button class="bigBtn secondary" data-skip="1">跳过</button></div>`);
   modal.querySelectorAll('[data-pick]').forEach(btn=>btn.onclick=()=>{
     const it = ITEMS.find(x=>x.id===btn.dataset.pick);
     if(opts.devil){
@@ -510,6 +543,8 @@ function showItemChoice(pool, title, text, opts={}){
     applyItem(it); closeModal();
     if(opts.after) opts.after(it); else state.mode='play';
   });
+  const rr = modal.querySelector('[data-reroll-shop]');
+  if(rr) rr.onclick=()=>{ if(state.player.coins<5){ showToast('金币不足，刷新要5金币。',900); return; } state.player.coins-=5; closeModal(); showItemChoice(pool, title+' · 已刷新', text, {...opts, items:chooseItems(pool,count)}); };
   const skip = modal.querySelector('[data-skip]');
   skip.onclick=()=>{ closeModal(); if(opts.skip) opts.skip(); else if(opts.after) opts.after(null); };
 }
@@ -560,6 +595,7 @@ function enterRoom(k, first=false){
   if(!state.room.cleared && state.room.enemies.length===0) spawnRoomEnemies(state.room);
   if(!first){
     if(state.room.type==='treasure' && !state.room.looted){ handleTreasureRoom(); }
+    if(state.room.type==='boss' && !state.room._warned){ state.room._warned=true; showToast('Boss房：注意二阶段和特殊机制！',1600); }
     if(state.room.type==='shop' && !state.room.looted){ handleShop(); }
     if(state.room.type==='curse' && !state.room.looted){ handleCurseRoom(); }
   }
@@ -576,14 +612,48 @@ function handleTreasureRoom(){
 }
 function handleShop(){
   state.room.looted=true; state.room.cleared=true;
-  showItemChoice('shop','小卖部','用金币买道具。买不起可以跳过。',{shop:true, count:3});
+  const p=state.player;
+  const sale = chance(.35 + p.luck*.015);
+  showItemChoice('shop', sale?'小卖部：今日赌狗特价':'小卖部', sale?'本房随机打折。也可以花5金币刷新商品，金币流BD越滚越强。':'用金币买道具。买不起可以跳过，也可以花5金币刷新商品。',{shop:true, count:3, sale, allowReroll:true});
 }
 function handleCurseRoom(){
   state.room.looted=true; state.room.cleared=true;
   const p=state.player;
   if(p.soul+p.black>0) damagePlayer(1,'curse',true); else damagePlayer(1,'curse');
-  const pool = chance(.55)?'devil':'treasure';
-  showItemChoice(pool,'诅咒房','进门会受伤，但可能提前拿到强力黑暗BD。',{count:3});
+  showCurseGamble();
+}
+function showCurseGamble(){
+  const p=state.player;
+  showModal(`<h2>诅咒房：赌狗三选一</h2><p class="smallText">进门已经付过血。这里不是普通奖励，是拿风险换爆点：可能出恶魔强BD，也可能只吐资源，甚至刷怪。</p><div class="gambleRow">
+    <button class="gambleBtn" data-curse="blood">血骰：再扣半心，换高品质BD概率</button>
+    <button class="gambleBtn" data-curse="box">诅咒宝箱：随机资源/黑心/怪物</button>
+    <button class="gambleBtn" data-curse="deal">黑门：偏恶魔/稀有BD</button>
+  </div><div class="row" style="margin-top:14px"><button class="bigBtn secondary" data-skip-curse="1">不赌了，离开</button></div>`);
+  modal.querySelector('[data-skip-curse]').onclick=()=>closeModal();
+  modal.querySelectorAll('[data-curse]').forEach(btn=>btn.onclick=()=>{
+    const pickType=btn.dataset.curse;
+    closeModal();
+    if(pickType==='blood'){
+      damagePlayer(1,'curse',true);
+      const pool = chance(.45+.025*p.luck)?'devil':'treasure';
+      showItemChoice(pool,'血骰奖励','你又压了一口血，奖励池变强。',{count:3, devil:pool==='devil', after:()=>state.mode='play', skip:()=>state.mode='play'});
+    } else if(pickType==='box'){
+      const roll=R();
+      if(roll<.18){
+        showToast('诅咒宝箱咬人！先清怪再走。',1200);
+        for(let i=0;i<3;i++) state.room.enemies.push(makeEnemy(pick(['fly','bomber','ghost']),260+R()*440,160+R()*300));
+        state.room.cleared=false;
+      } else if(roll<.42){
+        spawnPickup('black',W/2-24,H/2); spawnPickup('soul',W/2+24,H/2); showToast('宝箱吐出了黑心和魂心。',1200);
+      } else {
+        for(let i=0;i<6;i++) spawnPickup(pick(['coin','coin','key','bomb','heart']),W/2+R()*90-45,H/2+R()*60-30);
+        showToast('宝箱爆资源！',1200);
+      }
+    } else {
+      const pool = chance(.7)?'devil':'treasure';
+      showItemChoice(pool,'黑门交易','高风险高爆发奖励。恶魔池概率更高。',{count:4, devil:pool==='devil', after:()=>state.mode='play', skip:()=>state.mode='play'});
+    }
+  });
 }
 
 function makeRoom(r){
@@ -633,7 +703,7 @@ function makeBoss(){
   ];
   const b = bosses[Math.min(state.floor-1,bosses.length-1)];
   const hp = 130 + state.floor*85;
-  return {id:enemyId++, boss:true, bossType:b.type, name:b.name, x:W/2,y:H/2-60,r:42,hp,maxHp:hp,speed:60,dmg:1,cd:1,phase:0,phaseTimer:0,status:{},flash:0,dead:false, splitSpawned:false};
+  return {id:enemyId++, boss:true,bossType:b.type,name:b.name,x:W/2,y:H/2-60,r:46+state.floor*2,hp,maxHp:hp,speed:60,dmg:1,cd:1,phase:0,phaseTimer:0,status:{},flash:0,dead:false,splitSpawned:false,enraged:false,telegraph:0};
 }
 
 function roomCleared(){ return state.room && state.room.enemies.every(e=>e.dead); }
@@ -647,6 +717,7 @@ function clearRoom(){
     showToast(`无红伤清房：纸王冠成长 +${inc.toFixed(2)}伤害`,1500);
   }
   dropClearRewards(); updateMiniMap(); saveRun();
+  if(state.player.flags.s_seraphGuard) state.player.roomShield = Math.max(state.player.roomShield||0, 1);
   if(r.type==='boss') handleBossClear();
   else showToast('房间清空，门打开了。',900);
 }
@@ -659,6 +730,8 @@ function dropClearRewards(){
   if(chance(.12+luck)) spawnPickup('bomb', 460+R()*40, 305+R()*40);
   if(chance(.10+luck)) spawnPickup('heart', 460+R()*40, 305+R()*40);
   if(p.flags.soulOnClear && chance(.22+luck)) spawnPickup('soul', 460+R()*40, 305+R()*40);
+  if(p.flags.s_seraphGuard && chance(.16+luck)) spawnPickup('soul', 460+R()*40, 305+R()*40);
+  if(p.flags.s_greedEngine && chance(.28+luck)) spawnPickup('coin', 460+R()*40, 305+R()*40);
 }
 
 function calcDeal(){
@@ -695,8 +768,8 @@ function showDeal(deal){
   state.seenDealTwo = state.seenDealLast; state.seenDealLast = 1;
   const perfect = !state.floorRedDamage && !state.bossRedDamage;
   if(deal.dual){
-    showModal(`<h2>命运分叉：天使房 / 恶魔房</h2>
-      <p class="smallText">完美层！你没有受到红心伤害。魂心/黑心挡伤不算破功。天使房免费且稳，恶魔房用血上限换爆发。</p>
+    showModal(`<div class="dealStage angel"><h2>命运分叉：天使房 / 恶魔房</h2><p class="smallText">完美层！你没有受到红心伤害。金门和红门同时裂开，这是本局路线分叉点。</p></div>
+      <p class="smallText">魂心/黑心挡伤不算破功。天使房免费且稳，恶魔房用血上限换爆发。</p>
       <div class="choices">
         <div class="choiceCard angel"><div class="q">强力免费奖励</div><h3>进入天使房</h3><div class="d">偏防御、复活、魂心、圣光、无伤成长。适合稳扎稳打。</div><button class="choiceBtn" data-deal-kind="angel">进天使房</button></div>
         <div class="choiceCard devil"><div class="q">强力献祭奖励</div><h3>进入恶魔房</h3><div class="d">偏光束、飞刃、环形激光、多重、低血狂暴。代价是红心上限。</div><button class="choiceBtn" data-deal-kind="devil">进恶魔房</button></div>
@@ -710,11 +783,11 @@ function showDeal(deal){
 }
 function showAngelRoom(perfect=false){
   const after=()=>showNextFloor(perfect?'天使房奖励已获得。完美层路线成型！':'天使房奖励已获得。');
-  showItemChoice('angel','天使房','强力免费奖励：偏魂心、防御、复活、圣光、无伤成长。',{angel:true,count:3,after,skip:()=>showNextFloor('你离开了天使房。')});
+  showItemChoice('angel','✨ 天使房降临','金光打开。这里的奖励不收血，强度更偏保命、圣光、复活、无伤滚雪球。',{angel:true,count:4,after,skip:()=>showNextFloor('你离开了天使房。')});
 }
 function showDevilRoom(perfect=false){
   const after=()=>showNextFloor(perfect?'恶魔交易完成。爆发路线启动！':'恶魔交易完成。');
-  showItemChoice('devil','恶魔房','强力献祭奖励：用红心上限换飞刃/光束/环形激光/狂暴。拿了恶魔交易后，天使房会明显变少。',{devil:true,count:3,after,skip:()=>{ state.refusedDevil=true; showNextFloor('你拒绝了恶魔交易。以后天使房概率更高。'); }});
+  showItemChoice('devil','😈 恶魔房开启','红门在跳动。这里是用红心上限换爆发：飞刃、光束、环形激光、低血狂暴会更容易出现。',{devil:true,count:4,after,skip:()=>{ state.refusedDevil=true; showNextFloor('你拒绝了恶魔交易。以后天使房概率更高。'); }});
 }
 function showNextFloor(text){
   saveRun();
@@ -755,6 +828,10 @@ function playerDamageValue(){
   if(p.flags.bossDmg && state.room?.type==='boss') d *= 1.25;
   if(p.hurtRage>0) d *= 1.8;
   if(p.flags.cursePower && p.maxRed<=4) d *= 1.15;
+  if(p.flags.s_seekingSpear) d *= 1.10;
+  if(p.flags.s_brimCircle && p.weapon==='beam') d *= 1.08;
+  if(p.flags.s_blackVamp && p.red <= Math.max(2,p.maxRed*.5)) d *= 1.12;
+  if(p.flags.s_seraphGuard && p.soul+p.black>0) d *= 1.06;
   return d;
 }
 
@@ -789,7 +866,7 @@ function spawnPlayerShot(a, mult=1, short=false, familiar=false){
   const p=state.player;
   const d = playerDamageValue()*mult*(familiar?.48:1);
   const cx=p.x+Math.cos(a)*(p.r+8), cy=p.y+Math.sin(a)*(p.r+8);
-  const common = {x:cx,y:cy,angle:a,damage:d,owner:'p',hit:{},life:short?.45:p.range/p.bulletSpeed, pierce:!!p.flags.pierce, spectral:!!p.flags.spectral, homing:p.flags.homing||0, bounce:p.flags.bounce||0, split:p.flags.split||0, bomb:p.flags.bombHit||0, r:(8*p.size)+(familiar?2:0), type:p.weapon};
+  const common = {x:cx,y:cy,angle:a,damage:d,owner:'p',hit:{},life:short?.45:p.range/p.bulletSpeed, pierce:!!p.flags.pierce || !!p.flags.s_seekingSpear, spectral:!!p.flags.spectral, homing:(p.flags.homing||0)+(p.flags.s_seekingSpear?1:0), bounce:p.flags.bounce||0, split:(p.flags.split||0)+(p.flags.s_iceShard?1:0), bomb:(p.flags.bombHit||0)+(p.flags.s_bombStorm?1:0), r:(8*p.size)+(familiar?2:0), type:p.weapon};
   if(p.weapon==='beam'){
     spawnBeam(a,d, familiar?.45:1); addParticle(cx,cy,'#ff7bb0',5,'spark'); return;
   }
@@ -809,8 +886,8 @@ function spawnPlayerShot(a, mult=1, short=false, familiar=false){
 }
 function spawnBeam(a,d, mult=1){
   const p=state.player;
-  state.beams.push({x:p.x,y:p.y,angle:a,len:p.range*1.3,width:(18+5*p.size)*(p.flags.starRing?1.25:1)*mult,damage:d*.64,life:.18,tick:0,hit:{},holy:!!p.flags.holyBeam});
-  if(p.flags.beamFork){
+  state.beams.push({x:p.x,y:p.y,angle:a,len:p.range*1.3,width:(18+5*p.size)*(p.flags.starRing?1.25:1)*(p.flags.s_brimCircle?1.18:1)*mult,damage:d*.64,life:.18,tick:0,hit:{},holy:!!p.flags.holyBeam});
+  if(p.flags.beamFork || p.flags.s_brimCircle){
     state.beams.push({x:p.x,y:p.y,angle:a+.24,len:p.range*.9,width:10,damage:d*.33,life:.16,tick:0,hit:{}});
     state.beams.push({x:p.x,y:p.y,angle:a-.24,len:p.range*.9,width:10,damage:d*.33,life:.16,tick:0,hit:{}});
   }
@@ -985,22 +1062,24 @@ function updateEnemy(e,dt){
 function updateBoss(e,dt){
   const p=state.player; e.phaseTimer+=dt; e.cd-=dt;
   const a=angTo(e.x,e.y,p.x,p.y); const sp=e.speed*statusSpeed(e);
+  if(!e.enraged && e.hp<e.maxHp*.45){ e.enraged=true; e.cd=Math.min(e.cd,.35); showToast(`${e.name} 进入二阶段！`,1200); for(let i=0;i<18;i++) addParticle(e.x,e.y,'#ff6d8e',12,'spark'); }
+  const rage = e.enraged ? 1.35 : 1;
   if(e.bossType==='boss_blob'){
     e.x += Math.cos(a)*sp*.55*dt; e.y += Math.sin(a)*sp*.55*dt;
-    if(e.cd<=0){ radial(e, 9+state.floor, 155, '#ff7d91'); e.cd=1.6; if(chance(.55)) state.room.enemies.push(makeEnemy('blob',e.x+R()*70-35,e.y+R()*70-35)); }
+    if(e.cd<=0){ radial(e, 9+state.floor+(e.enraged?5:0), 155*rage, '#ff7d91'); e.cd=1.6/rage; if(chance(.55)) state.room.enemies.push(makeEnemy('blob',e.x+R()*70-35,e.y+R()*70-35)); }
   } else if(e.bossType==='boss_twins'){
     e.x += Math.cos(now()*1.6)*90*dt; e.y += Math.sin(now()*2.1)*55*dt;
-    if(e.cd<=0){ enemyShoot(e,a,230); enemyShoot(e,a+.22,210); enemyShoot(e,a-.22,210); e.cd=.85; }
+    if(e.cd<=0){ enemyShoot(e,a,230*rage); enemyShoot(e,a+.22,210*rage); enemyShoot(e,a-.22,210*rage); if(e.enraged){ enemyShoot(e,a+Math.PI,190); } e.cd=.85/rage; }
     if(!e.splitSpawned && e.hp<e.maxHp*.55){ e.splitSpawned=true; state.room.enemies.push({...makeEnemy('charger',e.x-70,e.y), hp:70, maxHp:70, r:28, boss:false, type:'charger'}); }
   } else if(e.bossType==='boss_doll'){
     if(e.charging>0){ e.charging-=dt; e.x+=e.vx*dt; e.y+=e.vy*dt; }
-    else { e.x += Math.cos(a)*sp*.35*dt; e.y += Math.sin(a)*sp*.35*dt; if(e.cd<=0){ e.vx=Math.cos(a)*430; e.vy=Math.sin(a)*430; e.charging=.55; e.cd=2.2; spawnEnemyBeam(e,a); } }
+    else { e.x += Math.cos(a)*sp*.35*dt; e.y += Math.sin(a)*sp*.35*dt; if(e.cd<=0){ e.vx=Math.cos(a)*430; e.vy=Math.sin(a)*430; e.charging=.55; e.cd=2.2; spawnEnemyBeam(e,a); if(e.enraged) radial(e,10,180,'#ff8fab'); } }
   } else if(e.bossType==='boss_candle'){
     e.x = W/2 + Math.cos(now()*.8)*170; e.y = 200 + Math.sin(now()*1.2)*80;
-    if(e.cd<=0){ radial(e, 14, 135, '#ffe7a0'); spawnEnemyBeam(e,a+Math.sin(now())*.45); e.cd=1.7; }
+    if(e.cd<=0){ radial(e, 14+(e.enraged?8:0), 135*rage, '#ffe7a0'); spawnEnemyBeam(e,a+Math.sin(now())*.45); if(e.enraged) spawnEnemyBeam(e,a+Math.PI/2); e.cd=1.7/rage; }
   } else if(e.bossType==='boss_chest'){
     e.x += Math.cos(a)*sp*.5*dt; e.y += Math.sin(a)*sp*.5*dt;
-    if(e.cd<=0){ for(let i=0;i<5;i++) enemyBomb(e, R()*TAU); if(chance(.45)) spawnPickup('coin',e.x,e.y); e.cd=2.1; }
+    if(e.cd<=0){ for(let i=0;i<(e.enraged?8:5);i++) enemyBomb(e, R()*TAU); if(chance(.45)) spawnPickup('coin',e.x,e.y); if(e.enraged) radial(e,12,155,'#ffd36f'); e.cd=2.1/rage; }
   } else if(e.bossType==='boss_heart'){
     e.x = W/2 + Math.sin(now()*1.1)*95; e.y = H/2-30 + Math.sin(now()*1.7)*35;
     if(e.cd<=0){ radial(e, e.hp<e.maxHp*.45?24:16, e.hp<e.maxHp*.45?210:165, '#ff4773'); spawnEnemyBeam(e, 0); spawnEnemyBeam(e, Math.PI/2); if(chance(.45)) state.room.enemies.push(makeEnemy(pick(['fly','spitter','charger']),100+R()*(W-200),120+R()*(H-240))); e.cd=e.hp<e.maxHp*.45?1.0:1.55; }
@@ -1053,8 +1132,9 @@ function hitEnemies(pr){
     const t=now(); if(pr.hit[e.id] && t-pr.hit[e.id]<.13) continue; pr.hit[e.id]=t;
     damageEnemy(e, pr.damage, pr.type);
     applyHitEffects(e, pr);
-    if(pr.bomb && chance(.08*pr.bomb + .02*state.player.luck)) explode(pr.x,pr.y,70,pr.damage*.8,true);
-    if(pr.split && chance(.35)){ for(let i=0;i<2;i++){ const a=pr.angle+(i?1:-1)*.55; state.projectiles.push({...pr, x:pr.x,y:pr.y, vx:Math.cos(a)*state.player.bulletSpeed*.75, vy:Math.sin(a)*state.player.bulletSpeed*.75, life:.35, damage:pr.damage*.38, split:0, hit:{}, r:Math.max(5,pr.r*.65), type:'tear'}); } }
+    if(pr.bomb && chance((state.player.flags.s_bombStorm?.14:.08)*pr.bomb + .02*state.player.luck)) explode(pr.x,pr.y,70,pr.damage*.8,true);
+    if(pr.type==='knife' && state.player.flags.s_bladeHalo && chance(.35)){ state.projectiles.push({...pr,type:'ring',x:e.x,y:e.y,vx:0,vy:0,life:.35,rad:10,thick:7,damage:pr.damage*.32,hit:{},pierce:true}); }
+    if(pr.split && chance(state.player.flags.s_iceShard?.52:.35)){ for(let i=0;i<2;i++){ const a=pr.angle+(i?1:-1)*.55; state.projectiles.push({...pr, x:pr.x,y:pr.y, vx:Math.cos(a)*state.player.bulletSpeed*.75, vy:Math.sin(a)*state.player.bulletSpeed*.75, life:.35, damage:pr.damage*.38, split:0, hit:{}, r:Math.max(5,pr.r*.65), type:'tear'}); } }
     if(!pr.pierce && pr.type!=='knife' && pr.type!=='ring'){ pr.dead=true; break; }
   }
 }
@@ -1066,8 +1146,10 @@ function applyHitEffects(e, pr){
   if(f.freeze && chance(.09+lk)) e.status.freeze=.9;
   if(f.slow) e.status.slow=2.0;
   if(f.charm && chance(.10+lk)) e.status.charm=2.4;
-  if(f.holyBeam && chance(.07+lk*.5)) holyStrike(e.x,e.y,pr.damage*.9);
-  if(f.arc && chance(.12+lk)) arcDamage(e, pr.damage*.42);
+  if(f.holyBeam && chance((f.s_holyMachine?.12:.07)+lk*.5)) holyStrike(e.x,e.y,pr.damage*(f.s_holyMachine?1.15:.9));
+  if(f.arc && chance((f.s_holyMachine?.22:.12)+lk)) arcDamage(e, pr.damage*(f.s_holyMachine?.55:.42));
+  if(f.s_toxicFire && (e.status.poison||e.status.burn)) damageEnemy(e, pr.damage*.08, 'toxic');
+  if(f.s_iceShard && e.status.freeze && chance(.28+lk)){ for(let i=0;i<3;i++){ const a=pr.angle + (i-1)*.55; state.projectiles.push({x:e.x,y:e.y,angle:a,damage:pr.damage*.25,owner:'p',hit:{},life:.32,pierce:true,spectral:true,homing:0,bounce:0,split:0,bomb:0,r:5,type:'tear',vx:Math.cos(a)*state.player.bulletSpeed*.7,vy:Math.sin(a)*state.player.bulletSpeed*.7}); } }
 }
 function damageEnemy(e,d,src){
   if(e.shield && src==='tear'){ d*=.75; }
@@ -1080,7 +1162,10 @@ function killEnemy(e){
   if(e.type==='splitter'){ state.room.enemies.push(makeEnemy('fly',e.x-18,e.y)); state.room.enemies.push(makeEnemy('fly',e.x+18,e.y)); }
   const p=state.player;
   if(p.flags.vampKill && chance(.12+.02*p.luck)){ p.red=Math.min(p.maxRed,p.red+1); showToast('吸血击杀：回复半颗红心',800); }
-  if(p.flags.blackOnKill && chance(.07+.01*p.luck)) spawnPickup('black',e.x,e.y);
+  if(p.flags.blackOnKill && chance((p.flags.s_blackVamp?.13:.07)+.01*p.luck)) spawnPickup('black',e.x,e.y);
+  if(p.flags.s_blackVamp && p.red<=Math.max(2,p.maxRed*.5) && chance(.08+.01*p.luck)) p.red=Math.min(p.maxRed,p.red+1);
+  if(p.flags.s_toxicFire && (e.status.poison||e.status.burn)) explode(e.x,e.y,58,playerDamageValue()*.42,true);
+  if(p.flags.s_greedEngine && chance(.16+.012*p.luck)) spawnPickup('coin',e.x+R()*20-10,e.y+R()*20-10);
   if(chance(.08+.015*p.luck)) spawnPickup(pick(['coin','heart','key','bomb']), e.x, e.y);
 }
 function holyStrike(x,y,d){ state.beams.push({x,y,angle:-Math.PI/2,len:120,width:28,damage:d,life:.14,tick:0,hit:{},holy:true,vertical:true}); }
@@ -1279,12 +1364,8 @@ function drawEnemies(){
 }
 function drawPlayer(){
   const p=state.player; if(!p) return;
-  const bob = Math.sin(now()*7)*1.45;
-  // 柔和地面阴影，让角色像站在地牢里，不像一个平面图标
-  ctx.save();
-  ctx.globalAlpha=.28; ctx.fillStyle='#000';
-  ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*1.02, p.r*1.02, p.r*.34, 0, 0, TAU); ctx.fill();
-  ctx.restore();
+  const bob = Math.sin(now()*7)*1.2;
+  ctx.save(); ctx.globalAlpha=.30; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*1.18, p.r*1.10, p.r*.38, 0, 0, TAU); ctx.fill(); ctx.restore();
 
   for(let i=0;i<p.orbitals;i++){
     const o=orbitalPos(i,p.orbitals);
@@ -1296,68 +1377,46 @@ function drawPlayer(){
     if(!drawSprite(p.flags.holySpark?'orbital':'familiar',x,y,1.85)) { ctx.fillStyle=p.flags.holySpark?'#fff2a9':'#b78cff'; circle(x,y,10); }
   }
 
-  ctx.save();
-  ctx.translate(p.x,p.y+bob);
+  ctx.save(); ctx.translate(p.x,p.y+bob);
   ctx.globalAlpha=p.inv>0 ? .55 + Math.sin(now()*40)*.25 : 1;
-  if(p.shadow>0){ ctx.globalAlpha*=.75; }
+  const dark = p.shadow>0;
+  if(dark) ctx.globalAlpha*=.75;
+  const skin=dark?'#c6b0d8':'#ffd9bd';
+  const hood=dark?'#63527b':'#76d8ff';
+  const hood2=dark?'#3b314d':'#318fd0';
+  const cape=dark?'#584369':'#ff9ccc';
+  const shoe=dark?'#221b2f':'#433060';
+  const blush=dark?'rgba(230,118,190,.28)':'rgba(255,126,155,.42)';
 
-  const skin=p.shadow>0?'#b9a3c7':'#ffd6b2';
-  const hood=p.shadow>0?'#5f4d76':'#8ad8ff';
-  const hoodDark=p.shadow>0?'#3d314f':'#4c95c8';
-  const body=p.shadow>0?'#514264':'#ffb6d4';
-  const shoe=p.shadow>0?'#282235':'#553a67';
-  const hair=p.shadow>0?'#44324f':'#7b513f';
-
-  // 小短腿和鞋：先画脚，明确不是奇怪椭圆
-  ctx.fillStyle=shoe;
-  roundedRect(-12,p.r*.66,9,7,4,true);
-  roundedRect(3,p.r*.66,9,7,4,true);
-  ctx.fillStyle=hoodDark;
-  roundedRect(-10,p.r*.38,6,12,4,true);
-  roundedRect(4,p.r*.38,6,12,4,true);
-
-  // 身体：小斗篷/小外套
-  ctx.fillStyle=body;
-  roundedRect(-15,1,30,27,12,true);
-  ctx.fillStyle='rgba(255,255,255,.22)';
-  roundedRect(-9,5,7,14,4,true);
-  ctx.fillStyle=hoodDark;
-  roundedRect(-18,5,7,17,5,true);
-  roundedRect(11,5,7,17,5,true);
-  ctx.fillStyle=skin;
-  circle(-17,21,3.6); circle(17,21,3.6);
-
-  // 大帽兜 + 圆脸，走可爱小豆丁方向
+  // 明显的“可爱小人”轮廓：兔耳兜帽、身体、手、短腿、鞋。
   ctx.fillStyle=hood;
-  circle(0,-10,22);
-  ctx.fillStyle=skin;
-  circle(0,-8,17.5);
+  ctx.beginPath(); ctx.ellipse(-9,-31,6,17,-.25,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9,-31,6,17,.25,0,TAU); ctx.fill();
+  ctx.fillStyle=hood2;
+  ctx.beginPath(); ctx.ellipse(-9,-31,3,12,-.25,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(9,-31,3,12,.25,0,TAU); ctx.fill();
 
-  // 刘海/小呆毛
-  ctx.fillStyle=hair;
-  ctx.beginPath();
-  ctx.arc(0,-19,15.5,Math.PI*.08,Math.PI*.92,true);
-  ctx.lineTo(-12,-10);
-  ctx.quadraticCurveTo(-5,-15,0,-10);
-  ctx.quadraticCurveTo(5,-15,12,-10);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle=hair; ctx.lineWidth=3; ctx.lineCap='round';
-  ctx.beginPath(); ctx.moveTo(0,-32); ctx.quadraticCurveTo(6,-38,11,-33); ctx.stroke();
+  ctx.fillStyle=shoe; roundedRect(-13,24,10,7,4,true); roundedRect(3,24,10,7,4,true);
+  ctx.fillStyle=hood2; roundedRect(-11,11,7,15,5,true); roundedRect(4,11,7,15,5,true);
+  ctx.fillStyle=cape; roundedRect(-17,-1,34,31,12,true);
+  ctx.fillStyle='rgba(255,255,255,.22)'; roundedRect(-8,3,7,18,4,true);
+  ctx.fillStyle=hood2; roundedRect(-22,4,8,19,6,true); roundedRect(14,4,8,19,6,true);
+  ctx.fillStyle=skin; circle(-22,22,4); circle(22,22,4);
 
-  // 表情：更萌更清楚
-  ctx.fillStyle='#241725';
-  circle(-6,-9,2.8); circle(6,-9,2.8);
-  ctx.fillStyle='rgba(255,255,255,.92)';
-  circle(-7,-10,1); circle(5,-10,1);
-  ctx.strokeStyle='#7a4550'; ctx.lineWidth=2; ctx.lineCap='round';
-  ctx.beginPath(); ctx.arc(0,-3,5,.25,Math.PI-.25); ctx.stroke();
-  ctx.fillStyle='rgba(255,132,159,.36)';
-  circle(-11,-4,3.2); circle(11,-4,3.2);
+  ctx.fillStyle=hood; circle(0,-12,24);
+  ctx.fillStyle=skin; circle(0,-10,18);
+  ctx.fillStyle='#7a5740';
+  ctx.beginPath(); ctx.arc(0,-21,15.5,Math.PI*.05,Math.PI*.95,true); ctx.lineTo(-13,-12); ctx.quadraticCurveTo(-6,-18,0,-11); ctx.quadraticCurveTo(6,-18,13,-12); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='#7a5740'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(0,-34); ctx.quadraticCurveTo(7,-41,13,-34); ctx.stroke();
 
-  // 外圈特效
-  if(p.mantleReady){ ctx.strokeStyle='#fff0a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+11,0,TAU); ctx.stroke(); }
-  if(p.roomShield){ ctx.strokeStyle='#9ad2ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+14,0,TAU); ctx.stroke(); }
+  ctx.fillStyle='#251827'; circle(-6,-11,3.0); circle(6,-11,3.0);
+  ctx.fillStyle='#fff'; circle(-7,-12,1.1); circle(5,-12,1.1);
+  ctx.strokeStyle='#7a4550'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,-5,5,.25,Math.PI-.25); ctx.stroke();
+  ctx.fillStyle=blush; circle(-12,-6,3.6); circle(12,-6,3.6);
+
+  if(p.mantleReady){ ctx.strokeStyle='#fff0a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+13,0,TAU); ctx.stroke(); }
+  if(p.roomShield){ ctx.strokeStyle='#9ad2ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+16,0,TAU); ctx.stroke(); }
+  if(p.synergies?.length){ ctx.strokeStyle='rgba(255,220,110,.75)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,p.r+19,now()*2,now()*2+Math.PI*1.3); ctx.stroke(); }
   ctx.restore();
 }
 function orbitalPos(i,n){ const p=state.player; const a=now()*2.6 + i/n*TAU; return {x:p.x+Math.cos(a)*46,y:p.y+Math.sin(a)*46}; }
@@ -1405,7 +1464,7 @@ function drawParticles(){
 }
 function drawBossBar(){
   const b=state.room?.enemies.find(e=>e.boss&&!e.dead); if(!b) return;
-  const w=520,h=13,x=(W-w)/2,y=52; ctx.fillStyle='rgba(0,0,0,.45)'; roundedRect(x,y,w,h,8,true); ctx.fillStyle='#ff5d79'; roundedRect(x,y,w*clamp(b.hp/b.maxHp,0,1),h,8,true); ctx.fillStyle='#fff'; ctx.font='900 13px sans-serif'; ctx.textAlign='center'; ctx.fillText(b.name,W/2,y-6);
+  const w=520,h=13,x=(W-w)/2,y=52; ctx.fillStyle='rgba(0,0,0,.45)'; roundedRect(x,y,w,h,8,true); ctx.fillStyle='#ff5d79'; roundedRect(x,y,w*clamp(b.hp/b.maxHp,0,1),h,8,true); ctx.fillStyle='#fff'; ctx.font='900 13px sans-serif'; ctx.textAlign='center'; ctx.fillText((b.enraged?'二阶段 · ':'')+b.name,W/2,y-6);
 }
 function drawPause(){ ctx.fillStyle='rgba(0,0,0,.45)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='900 48px sans-serif'; ctx.textAlign='center'; ctx.fillText('暂停',W/2,H/2); }
 function circle(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); }
