@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="theme-color" content="#171221" />
+  <meta name="description" content="可爱怪诞地牢肉鸽射击网页游戏，手机和电脑都能玩。" />
+  <title>萌渊地牢 Cute Abyss</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="manifest" href="manifest.webmanifest" />
+</head>
+<body>
+  <div id="gameWrap">
+    <canvas id="game" width="960" height="640" aria-label="Cute Abyss game canvas"></canvas>
+
+    <div id="hud">
+      <div class="hud-left">
+        <div id="hearts" class="hearts"></div>
+        <div id="statsLine">层 1 · 房间 1 · 金币 0 钥匙 0 炸弹 0</div>
+        <div id="dealLine">特殊房：未知</div>
+      </div>
+      <div class="hud-right">
+        <button id="btnPause" class="miniBtn">暂停</button>
+        <button id="btnMap" class="miniBtn">地图</button>
+        <button id="btnAuto" class="miniBtn active">自动射击</button>
+      </div>
+    </div>
+
+    <div id="miniMap" class="miniMap hidden"></div>
+    <div id="toast" class="toast hidden"></div>
+
+    <div id="leftStick" class="stick"><div></div><span>移动</span></div>
+    <div id="rightStick" class="stick"><div></div><span>射击</span></div>
+
+    <div id="modal" class="modal">
+      <div class="panel startPanel">
+        <h1>萌渊地牢</h1>
+        <p class="subtitle">可爱怪诞 · 房间推进 · 强BD · 天使/恶魔分叉</p>
+        <div class="tips">
+          <p><b>手机：</b>左摇杆移动，右摇杆手动射击；默认自动瞄准，适合手机。</p>
+          <p><b>电脑：</b>WASD移动，方向键/鼠标射击，空格暂停。</p>
+          <p><b>核心：</b>整层不吃红心伤害，Boss后更容易开强力天使/恶魔房。魂心/黑心挡伤不破无红伤。</p>
+        </div>
+        <div class="row">
+          <button id="btnStart" class="bigBtn">开始新局</button>
+          <button id="btnContinue" class="bigBtn secondary">继续存档</button>
+        </div>
+        <button id="btnGuide" class="linkBtn">玩法说明 / BD图鉴</button>
+      </div>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
