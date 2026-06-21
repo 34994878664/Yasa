@@ -13,6 +13,7 @@ const dealLine = $('dealLine');
 const miniMap = $('miniMap');
 const modal = $('modal');
 const toastEl = $('toast');
+const nextRoomBtn = $('btnNextRoom') || (()=>{ const b=document.createElement('button'); b.id='btnNextRoom'; b.className='nextRoomBtn hidden'; b.textContent='进门 / 下一房间'; document.getElementById('gameWrap').appendChild(b); return b; })();
 
 const R = Math.random;
 const TAU = Math.PI * 2;
@@ -208,7 +209,7 @@ function resetRun(saved){
   state.runStart = Date.now();
   generateFloor();
   state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false;
-  showToast(saved ? '已读取轻量存档：从本层入口继续。出生房通常没怪，走进门才刷怪。' : '新局开始：出生房没怪，往右边金色门走，第一战斗房会刷怪！', 3600);
+  showToast(saved ? '已读取轻量存档：从本层入口继续。出生房通常没怪，走进门才刷怪。' : '新局开始：出生房没怪，贴门或点“进门 / 下一房间”都会进入战斗房。', 3600);
 }
 
 function saveRun(){
@@ -391,7 +392,7 @@ function enterRoom(k, first=false){
     if(state.room.type==='shop' && !state.room.looted){ handleShop(); }
     if(state.room.type==='curse' && !state.room.looted){ handleCurseRoom(); }
   }
-  updateMiniMap();
+  updateMiniMap(); updateNextRoomButton();
 }
 
 function handleTreasureRoom(){
@@ -670,7 +671,7 @@ function update(dt){
   p.inv=Math.max(0,p.inv-dt); p.hurtRage=Math.max(0,p.hurtRage-dt); p.shadow=Math.max(0,p.shadow-dt);
   updatePlayer(dt); updateRoom(dt); fireWeapon(dt); updateProjectiles(dt); updateBeams(dt); updateParticles(dt); updatePickups(dt);
   if(state.room && !state.room.cleared && roomCleared()) clearRoom();
-  updateHud();
+  updateHud(); updateNextRoomButton();
 }
 
 function updatePlayer(dt){
@@ -690,15 +691,58 @@ function updatePlayer(dt){
 }
 
 function handleDoors(){
-  if(!state.room.cleared) return;
+  if(!state.room || !state.room.cleared) return;
+  const [rx,ry]=fromKey(state.current);
+  const p=state.player;
+  // 修复：玩家坐标会被限制在墙内，旧阈值永远碰不到门。这里用“靠近边缘+在门宽范围内”触发。
+  const inHDoor = Math.abs(p.y - H/2) < 82;
+  const inVDoor = Math.abs(p.x - W/2) < 96;
+  const dirs = [
+    {cond:p.x<=46 && inHDoor, nx:rx-1,ny:ry, px:W-76,py:H/2},
+    {cond:p.x>=W-46 && inHDoor, nx:rx+1,ny:ry, px:76,py:H/2},
+    {cond:p.y<=66 && inVDoor, nx:rx,ny:ry-1, px:W/2,py:H-86},
+    {cond:p.y>=H-50 && inVDoor, nx:rx,ny:ry+1, px:W/2,py:88},
+  ];
+  for(const d of dirs){
+    const k=keyOf(d.nx,d.ny);
+    if(d.cond && state.rooms.has(k)){ moveToRoom(k,d.px,d.py); break; }
+  }
+}
+
+function moveToRoom(k,px,py){
+  enterRoom(k);
+  state.player.x=px; state.player.y=py;
+  state.player.inv=Math.max(state.player.inv,.55);
+  showToast(state.room.cleared?'已进入安全房。':'进房成功：清怪后门会打开。',1200);
+  updateNextRoomButton();
+}
+
+function bestNextRoom(){
+  if(!state.room || !state.room.cleared) return null;
   const [rx,ry]=fromKey(state.current);
   const dirs = [
-    {cond:state.player.x<28, nx:rx-1,ny:ry, px:W-54,py:state.player.y},
-    {cond:state.player.x>W-28, nx:rx+1,ny:ry, px:54,py:state.player.y},
-    {cond:state.player.y<44, nx:rx,ny:ry-1, px:state.player.x,py:H-64},
-    {cond:state.player.y>H-28, nx:rx,ny:ry+1, px:state.player.x,py:70},
+    {label:'右边房间', nx:rx+1,ny:ry, px:76,py:H/2},
+    {label:'下边房间', nx:rx,ny:ry+1, px:W/2,py:88},
+    {label:'左边房间', nx:rx-1,ny:ry, px:W-76,py:H/2},
+    {label:'上边房间', nx:rx,ny:ry-1, px:W/2,py:H-86},
   ];
-  for(const d of dirs){ const k=keyOf(d.nx,d.ny); if(d.cond && state.rooms.has(k)){ enterRoom(k); state.player.x=d.px; state.player.y=d.py; break; } }
+  const available = dirs.map(d=>({...d,k:keyOf(d.nx,d.ny),room:state.rooms.get(keyOf(d.nx,d.ny))})).filter(d=>d.room);
+  if(!available.length) return null;
+  // 优先去没去过的普通/特殊房，出生房强制优先右侧教学战斗房。
+  return available.find(d=>!d.room.visited && d.room.tutorial) ||
+         available.find(d=>!d.room.visited && d.room.type==='normal') ||
+         available.find(d=>!d.room.visited) ||
+         available[0];
+}
+
+function updateNextRoomButton(){
+  if(!nextRoomBtn) return;
+  const d = bestNextRoom();
+  const show = state.mode==='play' && !state.inModal && !state.paused && !!d;
+  nextRoomBtn.classList.toggle('hidden', !show);
+  if(show){
+    nextRoomBtn.textContent = state.room?.type==='start' ? '进右侧战斗房' : `进门：${d.room.type==='boss'?'Boss房':d.room.type==='treasure'?'宝物房':d.room.type==='shop'?'商店':d.room.type==='curse'?'诅咒房':d.label}`;
+  }
 }
 
 function resolveCircleRect(c,o){
@@ -967,12 +1011,12 @@ function drawRoom(){
     ctx.textAlign='center';
     ctx.fillStyle='rgba(255,255,255,.92)';
     ctx.font='900 24px sans-serif';
-    ctx.fillText('出生房是安全房：往右边金色门走，进下一房间才会刷怪', W/2, 118);
+    ctx.fillText('出生房是安全房：贴门或点下方“进右侧战斗房”', W/2, 118);
     ctx.fillStyle='#ffd36f';
     ctx.font='900 54px sans-serif';
     ctx.fillText('➜', W-92, H/2+16);
     ctx.font='900 16px sans-serif';
-    ctx.fillText('第一战斗房', W-100, H/2+58);
+    ctx.fillText('右侧战斗房', W-100, H/2+58);
     ctx.restore();
   }
   if(r?.tutorial){
@@ -988,11 +1032,13 @@ function drawDoors(){
   if(!state.room) return;
   const open=state.room.cleared;
   for(const [nx,ny,dir] of neighbors(state.current)){
-    ctx.fillStyle=open?'#d7b66d':'#553441';
-    if(dir==='R') roundedRect(W-28,H/2-45,24,90,8,true);
-    if(dir==='L') roundedRect(4,H/2-45,24,90,8,true);
-    if(dir==='U') roundedRect(W/2-45,30,90,24,8,true);
-    if(dir==='D') roundedRect(W/2-45,H-28,90,24,8,true);
+    ctx.fillStyle=open?'#ffd36f':'#69424d';
+    ctx.strokeStyle=open?'rgba(255,245,177,.9)':'rgba(255,255,255,.16)';
+    ctx.lineWidth=4;
+    if(dir==='R'){ roundedRect(W-42,H/2-70,38,140,12,true); roundedRect(W-42,H/2-70,38,140,12,false); }
+    if(dir==='L'){ roundedRect(4,H/2-70,38,140,12,true); roundedRect(4,H/2-70,38,140,12,false); }
+    if(dir==='U'){ roundedRect(W/2-70,26,140,38,12,true); roundedRect(W/2-70,26,140,38,12,false); }
+    if(dir==='D'){ roundedRect(W/2-70,H-42,140,38,12,true); roundedRect(W/2-70,H-42,140,38,12,false); }
   }
 }
 function drawObstacles(){
@@ -1117,6 +1163,7 @@ makeStick($('leftStick'), input.move); makeStick($('rightStick'), input.aim);
 $('btnPause').onclick=togglePause;
 $('btnMap').onclick=()=>{ miniMap.classList.toggle('hidden'); updateMiniMap(); };
 $('btnAuto').onclick=()=>{ input.auto=!input.auto; $('btnAuto').classList.toggle('active',input.auto); showToast(input.auto?'自动射击已开':'自动射击已关'); };
+nextRoomBtn.onclick=()=>{ const d=bestNextRoom(); if(d) moveToRoom(d.k,d.px,d.py); else showToast(state.room?.cleared?'附近没有可进房间。':'清完怪门才会打开。'); };
 function togglePause(){ if(state.inModal || state.mode!=='play') return; state.paused=!state.paused; $('btnPause').textContent=state.paused?'继续':'暂停'; }
 
 $('btnStart').onclick=()=>{ localStorage.removeItem(SAVE_KEY); resetRun(); };
