@@ -5,7 +5,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = 960, H = 640;
 const SAVE_KEY = 'cute-abyss-save-v1';
-const GAME_VERSION = 'v7-deeper-synergy';
+const GAME_VERSION = 'v8-cute-core-bd-boss';
 
 const $ = (id) => document.getElementById(id);
 const hudHearts = $('hearts');
@@ -157,9 +157,9 @@ const ITEMS = [
   {id:'stone_heart',name:'石头心',pool:'treasure',q:2,desc:'红心上限+1，移速略降。',e:{maxRed:2,heal:2,speed:.94}},
   {id:'soul_bubble',name:'魂泡泡',pool:'treasure',q:2,desc:'获得2颗魂心。魂心挡伤不破无红伤。',e:{soul:4}},
   {id:'glass_cannon_seed',name:'玻璃糖炮',pool:'treasure',q:4,desc:'伤害大幅提升，但红心上限-1。',e:{dmg:2.2,maxRed:-2}},
-  {id:'cute_knife',name:'玩具血刃',pool:'treasure',q:4,desc:'把眼泪替换成蓄力感飞刃：高伤害、穿透、会回旋。',e:{weapon:'knife',dmg:1.1,fireMul:.72,flag:{pierce:1,spectral:1}}},
-  {id:'abyss_beam',name:'深渊奶昔光束',pool:'treasure',q:4,desc:'把眼泪替换成穿透光束：清线能力极强。',e:{weapon:'beam',dmg:.8,fireMul:.62,flag:{spectral:1,pierce:1}}},
-  {id:'halo_laser',name:'甜甜圈激光',pool:'treasure',q:4,desc:'把眼泪替换成环形激光波：穿透范围伤害。',e:{weapon:'ring',dmg:.7,fireMul:.70,flag:{pierce:1}}},
+  {id:'cute_knife',name:'妈妈系安全小刀',pool:'treasure',q:5,desc:'妈刀路线核心：眼泪替换为高频回旋飞刃，近身帧伤极强，拿到就能撑起一整局。',e:{weapon:'knife',dmg:2.4,fireMul:.82,size:1.10,flag:{pierce:1,spectral:1,knifeCore:1}}},
+  {id:'abyss_beam',name:'小硫磺奶昔',pool:'treasure',q:5,desc:'硫磺火路线核心：穿透持续光束，按帧造成伤害，清线和打Boss都很强。',e:{weapon:'beam',dmg:1.8,fireMul:.72,flag:{spectral:1,pierce:1,brimCore:1}}},
+  {id:'halo_laser',name:'科技X甜甜圈',pool:'treasure',q:5,desc:'科技X路线核心：环形激光按帧扫怪，范围大，穿透强，和光束/多重BD联动。',e:{weapon:'ring',dmg:1.6,fireMul:.78,size:1.12,flag:{pierce:1,techCore:1,starRing:1}}},
   {id:'battery_eye',name:'电池义眼',pool:'treasure',q:3,desc:'使用光束/环形/飞刃类武器时额外放出电弧。',e:{flag:{arc:1},luck:1}},
   {id:'star_worm',name:'星星虫',pool:'treasure',q:3,desc:'环形激光变成星形脉冲，范围更大。',e:{flag:{starRing:1},size:1.1}},
   {id:'knife_ring',name:'刃环贴纸',pool:'treasure',q:4,desc:'飞刃周围生成小环形激光。飞刃/环形BD联动核心。',e:{flag:{knifeRing:1},dmg:.4}},
@@ -222,14 +222,21 @@ const ITEMS = [
   {id:'angel_hymn',name:'圣歌磁带',pool:'angel',q:5,desc:'Boss战中伤害+25%，每层开始给魂心。',e:{flag:{bossDmg:1,floorSoul:1,angelRoute:1},soul:2}},
   {id:'angel_cleanse',name:'净化橡皮',pool:'angel',q:4,desc:'移除低血惩罚，红心上限+1，幸运+2。',e:{maxRed:2,heal:2,luck:2,flag:{cleanse:1,angelRoute:1}}},
 
+
+  // Cat set: strong fly scaling route
+  {id:'cat_paw_glove',name:'猫爪小手套',pool:'treasure',q:4,desc:'猫猫套组件：生成友方苍蝇概率提升；苍蝇吃你的伤害和攻速。',e:{dmg:.8,fireMul:1.10,flag:{catPart:1,catFlyGen:1}}},
+  {id:'cat_tail_ribbon',name:'猫尾蝴蝶结',pool:'treasure',q:4,desc:'猫猫套组件：移速+15%，击杀更容易吐出友方苍蝇。',e:{speed:1.15,luck:1,flag:{catPart:1,catFlyGen:1}}},
+  {id:'cat_head_bag',name:'猫猫纸袋头',pool:'devil',q:5,cost:2,desc:'猫猫套组件：伤害+1.5，获得黑心；3件猫猫组件激活猫猫套装。',e:{dmg:1.5,black:2,flag:{catPart:1,catFlyGen:2,devilRoute:1}}},
+  {id:'cat_milk_bowl',name:'猫咪牛奶碗',pool:'shop',q:4,price:18,desc:'猫猫套组件：射速+25%，友方苍蝇发射/生成更快。',e:{fireMul:1.25,flag:{catPart:1,catFlyGen:1}}},
+
   // Devil: strong cost/burst/black hearts
-  {id:'devil_brim',name:'深红吸管光束',pool:'devil',q:5,cost:4,desc:'用2红心上限交易：眼泪变成高伤穿透光束。',e:{weapon:'beam',dmg:2.0,fireMul:.55,black:2,flag:{pierce:1,spectral:1,devilRoute:1}}},
-  {id:'devil_knife',name:'黑糖屠刃',pool:'devil',q:5,cost:4,desc:'用2红心上限交易：获得超高伤害回旋飞刃。',e:{weapon:'knife',dmg:2.2,fireMul:.65,black:2,flag:{pierce:1,spectral:1,devilRoute:1}}},
-  {id:'devil_ring',name:'禁忌环切激光',pool:'devil',q:5,cost:4,desc:'用2红心上限交易：获得强力环形激光波。',e:{weapon:'ring',dmg:1.7,fireMul:.62,black:2,flag:{starRing:1,pierce:1,devilRoute:1}}},
+  {id:'devil_brim',name:'深红硫磺火',pool:'devil',q:5,cost:4,desc:'用2红心上限交易：硫磺火级别的持续光束。按帧伤害，穿透全场，拿到就是通关级核心。',e:{weapon:'beam',dmg:3.0,fireMul:.78,black:4,flag:{pierce:1,spectral:1,brimCore:2,devilRoute:1}}},
+  {id:'devil_knife',name:'黑糖妈刀',pool:'devil',q:5,cost:4,desc:'用2红心上限交易：恶魔版回旋飞刃。高频帧伤、穿透、回收，打Boss非常夸张。',e:{weapon:'knife',dmg:3.2,fireMul:.86,black:4,size:1.12,flag:{pierce:1,spectral:1,knifeCore:2,devilRoute:1}}},
+  {id:'devil_ring',name:'禁忌科技X',pool:'devil',q:5,cost:4,desc:'用2红心上限交易：恶魔版环形激光。大范围帧伤，和光束/飞刃/多重都能套装联动。',e:{weapon:'ring',dmg:2.5,fireMul:.82,black:4,size:1.16,flag:{starRing:1,pierce:1,techCore:2,devilRoute:1}}},
   {id:'devil_pact',name:'小恶魔契约',pool:'devil',q:4,cost:2,desc:'伤害+2，射速+20%，获得黑心。',e:{dmg:2,fireMul:1.2,black:2,flag:{devilRoute:1}}},
   {id:'devil_mark',name:'可爱恶魔印',pool:'devil',q:4,cost:2,desc:'伤害+1.2，移速+12%，黑心+1。',e:{dmg:1.2,speed:1.12,black:2,flag:{devilRoute:1}}},
   {id:'devil_whore',name:'低血小恶魔',pool:'devil',q:4,cost:2,desc:'低血时伤害/射速暴涨。',e:{flag:{lowHpRage:2,devilRoute:1},black:2}},
-  {id:'devil_deadcat',name:'九命布偶猫',pool:'devil',q:5,cost:2,desc:'红心上限变低，但获得9命。',e:{setMaxRed:2,heal:2,flag:{nineLives:1,devilRoute:1},dmg:.5}},
+  {id:'devil_deadcat',name:'九命猫猫布偶',pool:'devil',q:5,cost:2,desc:'猫猫套核心：红心上限变低，但获得9命。集齐猫猫组件会生成强力苍蝇，苍蝇吃伤害和攻速。',e:{setMaxRed:2,heal:2,flag:{nineLives:1,catPart:1,devilRoute:1},dmg:.7}},
   {id:'devil_blackcandle',name:'黑蜡烛奶油',pool:'devil',q:4,cost:2,desc:'特殊房概率提升，黑心+2，诅咒变成伤害。',e:{black:4,dmg:.8,flag:{compass:1,cursePower:1,devilRoute:1}}},
   {id:'devil_maw',name:'深渊小嘴',pool:'devil',q:4,cost:2,desc:'近身敌人会被黑洞吸住并掉黑心概率。',e:{flag:{maw:1,blackOnKill:1,devilRoute:1},dmg:.6}},
   {id:'devil_leviathan',name:'小利维坦尾巴',pool:'devil',q:5,cost:4,desc:'飞行感移动，伤害+1.5，黑心+3。',e:{dmg:1.5,speed:1.15,black:6,flag:{devilRoute:1}}},
@@ -255,7 +262,11 @@ const SYNERGY_RULES = [
   {id:'blackVamp', name:'黑心吸血', test:p=>p.flags.devilRoute && (p.flags.vampKill||p.flags.blackOnKill||p.flags.lowHpRage), desc:'低血恶魔路线击杀续航更强。'},
   {id:'seraphGuard', name:'炽天守护', test:p=>p.flags.angelRoute && (p.flags.mantle||p.flags.orbitBlock||p.flags.roomShield), desc:'天使防御路线会给房间护盾和魂心收益。'},
   {id:'bombStorm', name:'爆爆连锁', test:p=>p.flags.bombHit && (p.mult>=1||p.flags.lung), desc:'多弹/肺/炸弹联动，命中爆炸概率提高。'},
-  {id:'seekingSpear', name:'追踪圣矛', test:p=>p.flags.homing && p.flags.pierce, desc:'追踪+穿透合体，实战伤害提升。'}
+  {id:'seekingSpear', name:'追踪圣矛', test:p=>p.flags.homing && p.flags.pierce, desc:'追踪+穿透合体，实战伤害提升。'},
+  {id:'momBladeCore', name:'妈刀通关核', test:p=>p.weapon==='knife' && p.flags.knifeCore, desc:'飞刃变成高频帧伤核心，贴脸/回收都能快速融化Boss。'},
+  {id:'brimCore', name:'硫磺火通关核', test:p=>p.weapon==='beam' && p.flags.brimCore, desc:'光束按帧伤害加强，宽度、持续时间和Boss输出提高。'},
+  {id:'techXCore', name:'科技X环切核', test:p=>p.weapon==='ring' && p.flags.techCore, desc:'环形激光按帧扫怪，范围和伤害提升。'},
+  {id:'catSuite', name:'猫猫套装', test:p=>(p.flags.catPart||0)>=3 || (p.flags.nineLives && p.flags.catFlyGen), desc:'生成友方苍蝇；苍蝇吃你的伤害和攻速，越后期越像滚雪球军团。'}
 ];
 function refreshSynergies(show=false){
   const p=state.player; if(!p) return;
@@ -272,7 +283,7 @@ function refreshSynergies(show=false){
 }
 function synergyHtml(){
   const p=state.player; const arr=p?.synergies||[];
-  if(!arr.length) return '<p class="smallText">暂无协同。提示：飞刃+环形、毒+火、冻结+分裂、追踪+穿透、天使防御、恶魔低血都能触发协同。</p>';
+  if(!arr.length) return '<p class="smallText">暂无协同。提示：妈刀/硫磺火/科技X核心、猫猫3件套、飞刃+环形、毒+火、冻结+分裂、追踪+穿透都能触发协同。</p>';
   return `<div class="synergyWrap">${arr.map(s=>`<span class="synergyPill">${s.name}</span>`).join('')}</div><p class="smallText">${arr.map(s=>`${s.name}：${s.desc}`).join('｜')}</p>`;
 }
 let enemyId = 1;
@@ -319,6 +330,7 @@ function resetRun(saved){
   state.projectiles.length = 0; state.enemyProjectiles.length = 0; state.beams.length = 0; state.particles.length = 0; state.pickups.length = 0;
   state.runStart = Date.now();
   generateFloor();
+  refreshSynergies(false);
   state.mode = 'play'; state.inModal = false; modal.classList.add('hidden'); state.paused=false; if(bagFloatBtn) bagFloatBtn.classList.remove('hidden');
   updateItemDock();
   if(bagFloatBtn) bagFloatBtn.classList.remove('hidden');
@@ -830,6 +842,10 @@ function playerDamageValue(){
   if(p.flags.cursePower && p.maxRed<=4) d *= 1.15;
   if(p.flags.s_seekingSpear) d *= 1.10;
   if(p.flags.s_brimCircle && p.weapon==='beam') d *= 1.08;
+  if(p.flags.s_momBladeCore && p.weapon==='knife') d *= 1.28;
+  if(p.flags.s_brimCore && p.weapon==='beam') d *= 1.30;
+  if(p.flags.s_techXCore && p.weapon==='ring') d *= 1.24;
+  if(p.flags.s_catSuite) d *= 1.08;
   if(p.flags.s_blackVamp && p.red <= Math.max(2,p.maxRed*.5)) d *= 1.12;
   if(p.flags.s_seraphGuard && p.soul+p.black>0) d *= 1.06;
   return d;
@@ -839,6 +855,12 @@ function fireWeapon(dt){
   const p=state.player;
   p.fireCd -= dt;
   if(p.famCd === undefined) p.famCd=0; p.famCd-=dt;
+  if(p.catFlyCd === undefined) p.catFlyCd=0; p.catFlyCd-=dt;
+  if(p.flags.s_catSuite && p.catFlyCd<=0){
+    const flyRate = clamp(p.fireRate/3.0, .8, 3.8);
+    p.catFlyCd = Math.max(.12, .52/flyRate);
+    spawnCatFly();
+  }
   if(p.fireCd>0) return;
   const aim = getAimVector();
   if(!aim) return;
@@ -871,10 +893,10 @@ function spawnPlayerShot(a, mult=1, short=false, familiar=false){
     spawnBeam(a,d, familiar?.45:1); addParticle(cx,cy,'#ff7bb0',5,'spark'); return;
   }
   if(p.weapon==='ring'){
-    state.projectiles.push({...common,type:'ring',vx:Math.cos(a)*p.bulletSpeed*.58,vy:Math.sin(a)*p.bulletSpeed*.58,life:short?.55:1.0,rad:18*p.size,thick:(p.flags.starRing?15:10)*p.size}); addParticle(cx,cy,'#ffb5e1',6,'ring'); return;
+    state.projectiles.push({...common,type:'ring',vx:Math.cos(a)*p.bulletSpeed*.58,vy:Math.sin(a)*p.bulletSpeed*.58,life:short?.55:(p.flags.s_techXCore?1.25:1.0),rad:18*p.size,thick:(p.flags.starRing?15:10)*p.size,damage:d*(p.flags.s_techXCore?1.28:1)}); addParticle(cx,cy,'#ffb5e1',6,'ring'); return;
   }
   if(p.weapon==='knife'){
-    state.projectiles.push({...common,type:'knife',vx:Math.cos(a)*p.bulletSpeed*.82,vy:Math.sin(a)*p.bulletSpeed*.82,life:.92,range:p.range*.82,travel:0,r:18*p.size,damage:d*2.05,pierce:true,spectral:true}); addParticle(cx,cy,'#ffe3e8',6,'slash');
+    state.projectiles.push({...common,type:'knife',vx:Math.cos(a)*p.bulletSpeed*.82,vy:Math.sin(a)*p.bulletSpeed*.82,life:.92,range:p.range*.82,travel:0,r:18*p.size,damage:d*(p.flags.s_momBladeCore?3.10:2.35),pierce:true,spectral:true}); addParticle(cx,cy,'#ffe3e8',6,'slash');
     if(p.flags.knifeRing) state.projectiles.push({...common,type:'ring',vx:Math.cos(a)*p.bulletSpeed*.5,vy:Math.sin(a)*p.bulletSpeed*.5,life:.75,rad:12*p.size,thick:8*p.size,damage:d*.72});
     return;
   }
@@ -884,9 +906,19 @@ function spawnPlayerShot(a, mult=1, short=false, familiar=false){
   }
   state.projectiles.push({...common,type:'tear',vx:Math.cos(a)*p.bulletSpeed,vy:Math.sin(a)*p.bulletSpeed});
 }
+
+function spawnCatFly(){
+  const p=state.player; const e=nearestEnemy();
+  const a=e ? angTo(p.x,p.y,e.x,e.y) : Math.atan2(input.lastAim.y,input.lastAim.x);
+  const dmg = playerDamageValue() * (0.62 + clamp(p.fireRate,1,9)*0.055) * (p.flags.catFlyGen?1+.12*p.flags.catFlyGen:1);
+  const sp = p.bulletSpeed*(.80 + clamp(p.fireRate,1,8)*.025);
+  state.projectiles.push({x:p.x+Math.cos(a)*22,y:p.y+Math.sin(a)*22,angle:a,damage:dmg,owner:'p',hit:{},life:2.6,pierce:false,spectral:true,homing:4,bounce:0,split:0,bomb:0,r:10,type:'catFly',vx:Math.cos(a)*sp,vy:Math.sin(a)*sp});
+  if(chance(.35)) addParticle(p.x,p.y,'#b7f2ff',5,'spark');
+}
+
 function spawnBeam(a,d, mult=1){
   const p=state.player;
-  state.beams.push({x:p.x,y:p.y,angle:a,len:p.range*1.3,width:(18+5*p.size)*(p.flags.starRing?1.25:1)*(p.flags.s_brimCircle?1.18:1)*mult,damage:d*.64,life:.18,tick:0,hit:{},holy:!!p.flags.holyBeam});
+  state.beams.push({x:p.x,y:p.y,angle:a,len:p.range*(p.flags.s_brimCore?1.55:1.3),width:(18+5*p.size)*(p.flags.starRing?1.25:1)*(p.flags.s_brimCircle?1.18:1)*(p.flags.s_brimCore?1.28:1)*mult,damage:d*(p.flags.s_brimCore?.92:.64),life:p.flags.s_brimCore?.30:.18,tick:0,hit:{},holy:!!p.flags.holyBeam});
   if(p.flags.beamFork || p.flags.s_brimCircle){
     state.beams.push({x:p.x,y:p.y,angle:a+.24,len:p.range*.9,width:10,damage:d*.33,life:.16,tick:0,hit:{}});
     state.beams.push({x:p.x,y:p.y,angle:a-.24,len:p.range*.9,width:10,damage:d*.33,life:.16,tick:0,hit:{}});
@@ -1059,30 +1091,54 @@ function updateEnemy(e,dt){
   for(const o of state.room.obstacles){ if(o.kind==='rock' && e.type!=='ghost') resolveCircleRect(e,o); }
 }
 
+
+function bossSlam(e, radius=120){
+  addParticle(e.x,e.y,'#ffbf7a',34,'burst');
+  radial(e, e.enraged?18:12, e.enraged?205:165, '#ff9f78');
+  if(dist(e.x,e.y,state.player.x,state.player.y)<radius+state.player.r) damagePlayer(1,'slam');
+  for(let i=0;i<(e.enraged?5:3);i++){
+    const x=80+R()*(W-160), y=90+R()*(H-160);
+    state.enemyProjectiles.push({x,y,vx:0,vy:0,r:17,life:.72+R()*.38,color:'#d6ad7a',falling:true,radius:58});
+    addParticle(x,y,'#ffd18a',8,'ring');
+  }
+}
+function bossSummon(e,n=2){
+  for(let i=0;i<n;i++) state.room.enemies.push(makeEnemy(pick(['fly','spitter','charger','bomber']), clamp(e.x+R()*180-90,80,W-80), clamp(e.y+R()*150-75,90,H-90)));
+  addParticle(e.x,e.y,'#c79cff',22,'spark');
+}
+function bossDashAtPlayer(e, speed=520, time=.55){
+  const a=angTo(e.x,e.y,state.player.x,state.player.y);
+  e.vx=Math.cos(a)*speed; e.vy=Math.sin(a)*speed; e.charging=time; e.dashTrail=.35; addParticle(e.x,e.y,'#ff5f8a',18,'slash');
+}
+function bossLaserCross(e){
+  spawnEnemyBeam(e,0); spawnEnemyBeam(e,Math.PI/2); if(e.enraged){ spawnEnemyBeam(e,Math.PI/4); spawnEnemyBeam(e,-Math.PI/4); }
+}
+
 function updateBoss(e,dt){
   const p=state.player; e.phaseTimer+=dt; e.cd-=dt;
   const a=angTo(e.x,e.y,p.x,p.y); const sp=e.speed*statusSpeed(e);
   if(!e.enraged && e.hp<e.maxHp*.45){ e.enraged=true; e.cd=Math.min(e.cd,.35); showToast(`${e.name} 进入二阶段！`,1200); for(let i=0;i<18;i++) addParticle(e.x,e.y,'#ff6d8e',12,'spark'); }
   const rage = e.enraged ? 1.35 : 1;
+  if(e.charging>0){ e.charging-=dt; e.x+=e.vx*dt; e.y+=e.vy*dt; e.x=clamp(e.x,70,W-70); e.y=clamp(e.y,85,H-70); if(e.dashTrail){ e.dashTrail-=dt; addParticle(e.x,e.y,'#ff9ab0',6,'slash'); } if(dist(e.x,e.y,p.x,p.y)<e.r+p.r+4) damagePlayer(1,'boss-dash'); return; }
   if(e.bossType==='boss_blob'){
     e.x += Math.cos(a)*sp*.55*dt; e.y += Math.sin(a)*sp*.55*dt;
-    if(e.cd<=0){ radial(e, 9+state.floor+(e.enraged?5:0), 155*rage, '#ff7d91'); e.cd=1.6/rage; if(chance(.55)) state.room.enemies.push(makeEnemy('blob',e.x+R()*70-35,e.y+R()*70-35)); }
+    if(e.cd<=0){ const m=R(); if(m<.34) bossSlam(e,128); else if(m<.64) bossDashAtPlayer(e,430*rage,.42); else radial(e, 9+state.floor+(e.enraged?5:0), 155*rage, '#ff7d91'); e.cd=1.45/rage; if(chance(.45)) bossSummon(e,1); }
   } else if(e.bossType==='boss_twins'){
     e.x += Math.cos(now()*1.6)*90*dt; e.y += Math.sin(now()*2.1)*55*dt;
-    if(e.cd<=0){ enemyShoot(e,a,230*rage); enemyShoot(e,a+.22,210*rage); enemyShoot(e,a-.22,210*rage); if(e.enraged){ enemyShoot(e,a+Math.PI,190); } e.cd=.85/rage; }
+    if(e.cd<=0){ if(chance(.38)){ bossDashAtPlayer(e,520*rage,.38); } else { enemyShoot(e,a,230*rage); enemyShoot(e,a+.22,210*rage); enemyShoot(e,a-.22,210*rage); if(e.enraged){ enemyShoot(e,a+Math.PI,190); bossSummon(e,1); } } e.cd=.95/rage; }
     if(!e.splitSpawned && e.hp<e.maxHp*.55){ e.splitSpawned=true; state.room.enemies.push({...makeEnemy('charger',e.x-70,e.y), hp:70, maxHp:70, r:28, boss:false, type:'charger'}); }
   } else if(e.bossType==='boss_doll'){
     if(e.charging>0){ e.charging-=dt; e.x+=e.vx*dt; e.y+=e.vy*dt; }
-    else { e.x += Math.cos(a)*sp*.35*dt; e.y += Math.sin(a)*sp*.35*dt; if(e.cd<=0){ e.vx=Math.cos(a)*430; e.vy=Math.sin(a)*430; e.charging=.55; e.cd=2.2; spawnEnemyBeam(e,a); if(e.enraged) radial(e,10,180,'#ff8fab'); } }
+    else { e.x += Math.cos(a)*sp*.35*dt; e.y += Math.sin(a)*sp*.35*dt; if(e.cd<=0){ if(chance(.45)) bossSlam(e,110); bossDashAtPlayer(e,560,.52); e.cd=2.0; spawnEnemyBeam(e,a); if(e.enraged) radial(e,10,180,'#ff8fab'); } }
   } else if(e.bossType==='boss_candle'){
     e.x = W/2 + Math.cos(now()*.8)*170; e.y = 200 + Math.sin(now()*1.2)*80;
-    if(e.cd<=0){ radial(e, 14+(e.enraged?8:0), 135*rage, '#ffe7a0'); spawnEnemyBeam(e,a+Math.sin(now())*.45); if(e.enraged) spawnEnemyBeam(e,a+Math.PI/2); e.cd=1.7/rage; }
+    if(e.cd<=0){ if(chance(.35)) bossLaserCross(e); else { radial(e, 14+(e.enraged?8:0), 135*rage, '#ffe7a0'); spawnEnemyBeam(e,a+Math.sin(now())*.45); } if(e.enraged) bossSummon(e,1); e.cd=1.6/rage; }
   } else if(e.bossType==='boss_chest'){
     e.x += Math.cos(a)*sp*.5*dt; e.y += Math.sin(a)*sp*.5*dt;
-    if(e.cd<=0){ for(let i=0;i<(e.enraged?8:5);i++) enemyBomb(e, R()*TAU); if(chance(.45)) spawnPickup('coin',e.x,e.y); if(e.enraged) radial(e,12,155,'#ffd36f'); e.cd=2.1/rage; }
+    if(e.cd<=0){ const m=R(); if(m<.34) bossSlam(e,135); else if(m<.62) bossDashAtPlayer(e,480*rage,.46); else for(let i=0;i<(e.enraged?8:5);i++) enemyBomb(e, R()*TAU); if(chance(.45)) spawnPickup('coin',e.x,e.y); if(e.enraged) bossSummon(e,1); e.cd=1.9/rage; }
   } else if(e.bossType==='boss_heart'){
     e.x = W/2 + Math.sin(now()*1.1)*95; e.y = H/2-30 + Math.sin(now()*1.7)*35;
-    if(e.cd<=0){ radial(e, e.hp<e.maxHp*.45?24:16, e.hp<e.maxHp*.45?210:165, '#ff4773'); spawnEnemyBeam(e, 0); spawnEnemyBeam(e, Math.PI/2); if(chance(.45)) state.room.enemies.push(makeEnemy(pick(['fly','spitter','charger']),100+R()*(W-200),120+R()*(H-240))); e.cd=e.hp<e.maxHp*.45?1.0:1.55; }
+    if(e.cd<=0){ const m=R(); if(m<.30) bossSlam(e,150); else if(m<.56) bossLaserCross(e); else radial(e, e.hp<e.maxHp*.45?24:16, e.hp<e.maxHp*.45?210:165, '#ff4773'); if(chance(.55)) bossSummon(e,e.enraged?2:1); e.cd=e.hp<e.maxHp*.45?.95:1.45; }
   }
   e.x=clamp(e.x,70,W-70); e.y=clamp(e.y,85,H-70);
 }
@@ -1129,7 +1185,7 @@ function hitEnemies(pr){
       const d=dist(pr.x,pr.y,e.x,e.y); hit = Math.abs(d-pr.rad) < (pr.thick + e.r);
     } else hit = dist(pr.x,pr.y,e.x,e.y) < pr.r + e.r;
     if(!hit) continue;
-    const t=now(); if(pr.hit[e.id] && t-pr.hit[e.id]<.13) continue; pr.hit[e.id]=t;
+    const t=now(); const hitGap = pr.type==='knife' ? .045 : (pr.type==='ring' ? .065 : (pr.type==='catFly' ? .10 : .13)); if(pr.hit[e.id] && t-pr.hit[e.id]<hitGap) continue; pr.hit[e.id]=t;
     damageEnemy(e, pr.damage, pr.type);
     applyHitEffects(e, pr);
     if(pr.bomb && chance((state.player.flags.s_bombStorm?.14:.08)*pr.bomb + .02*state.player.luck)) explode(pr.x,pr.y,70,pr.damage*.8,true);
@@ -1161,6 +1217,7 @@ function killEnemy(e){
   sfx('kill'); addParticle(e.x,e.y,'#ff9fba',24,'burst');
   if(e.type==='splitter'){ state.room.enemies.push(makeEnemy('fly',e.x-18,e.y)); state.room.enemies.push(makeEnemy('fly',e.x+18,e.y)); }
   const p=state.player;
+  if(p.flags.s_catSuite && chance(.34 + .02*p.luck)){ spawnCatFly(); if(chance(.35)) spawnCatFly(); }
   if(p.flags.vampKill && chance(.12+.02*p.luck)){ p.red=Math.min(p.maxRed,p.red+1); showToast('吸血击杀：回复半颗红心',800); }
   if(p.flags.blackOnKill && chance((p.flags.s_blackVamp?.13:.07)+.01*p.luck)) spawnPickup('black',e.x,e.y);
   if(p.flags.s_blackVamp && p.red<=Math.max(2,p.maxRed*.5) && chance(.08+.01*p.luck)) p.red=Math.min(p.maxRed,p.red+1);
@@ -1199,6 +1256,7 @@ function hitPlayerBeam(b){ if(pointLineDistance(state.player.x,state.player.y,b.
 function updateEnemyBullets(dt){
   for(const eb of state.enemyProjectiles){
     eb.life-=dt; eb.x+=eb.vx*dt; eb.y+=eb.vy*dt;
+    if(eb.falling && eb.life<=0){ explode(eb.x,eb.y,eb.radius||72,1,false); eb.dead=true; }
     if(eb.bomb && eb.life<=0){ explode(eb.x,eb.y,64,1,false); eb.dead=true; }
     for(let i=0;i<state.player.orbitals;i++){
       const o=orbitalPos(i,state.player.orbitals);
@@ -1364,8 +1422,8 @@ function drawEnemies(){
 }
 function drawPlayer(){
   const p=state.player; if(!p) return;
-  const bob = Math.sin(now()*7)*1.2;
-  ctx.save(); ctx.globalAlpha=.30; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*1.18, p.r*1.10, p.r*.38, 0, 0, TAU); ctx.fill(); ctx.restore();
+  const bob = Math.sin(now()*8)*1.0;
+  ctx.save(); ctx.globalAlpha=.28; ctx.fillStyle='#000'; ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r*1.08, p.r*1.05, p.r*.35, 0, 0, TAU); ctx.fill(); ctx.restore();
 
   for(let i=0;i<p.orbitals;i++){
     const o=orbitalPos(i,p.orbitals);
@@ -1381,38 +1439,38 @@ function drawPlayer(){
   ctx.globalAlpha=p.inv>0 ? .55 + Math.sin(now()*40)*.25 : 1;
   const dark = p.shadow>0;
   if(dark) ctx.globalAlpha*=.75;
-  const skin=dark?'#c6b0d8':'#ffd9bd';
-  const hood=dark?'#63527b':'#76d8ff';
-  const hood2=dark?'#3b314d':'#318fd0';
-  const cape=dark?'#584369':'#ff9ccc';
-  const shoe=dark?'#221b2f':'#433060';
-  const blush=dark?'rgba(230,118,190,.28)':'rgba(255,126,155,.42)';
+  const skin = dark ? '#cdb9dd' : '#ffd7bd';
+  const skin2 = dark ? '#a98fbc' : '#ffb992';
+  const line = '#2b1b2b';
+  const cloth = dark ? '#6a577f' : '#f7f2ff';
+  const diaper = dark ? '#8a77a2' : '#ffffff';
 
-  // 明显的“可爱小人”轮廓：兔耳兜帽、身体、手、短腿、鞋。
-  ctx.fillStyle=hood;
-  ctx.beginPath(); ctx.ellipse(-9,-31,6,17,-.25,0,TAU); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(9,-31,6,17,.25,0,TAU); ctx.fill();
-  ctx.fillStyle=hood2;
-  ctx.beginPath(); ctx.ellipse(-9,-31,3,12,-.25,0,TAU); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(9,-31,3,12,.25,0,TAU); ctx.fill();
+  // 小以撒感的“圆头豆丁”：大圆头、小身体、小脚，绝不再用怪诞兔耳/尖形轮廓。
+  ctx.fillStyle='rgba(255,255,255,.16)'; ctx.beginPath(); ctx.ellipse(-8,-18,9,7,-.5,0,TAU); ctx.fill();
+  ctx.fillStyle=skin; circle(0,-10,24);
+  ctx.fillStyle='rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(-8,-19,8,5,-.45,0,TAU); ctx.fill();
 
-  ctx.fillStyle=shoe; roundedRect(-13,24,10,7,4,true); roundedRect(3,24,10,7,4,true);
-  ctx.fillStyle=hood2; roundedRect(-11,11,7,15,5,true); roundedRect(4,11,7,15,5,true);
-  ctx.fillStyle=cape; roundedRect(-17,-1,34,31,12,true);
-  ctx.fillStyle='rgba(255,255,255,.22)'; roundedRect(-8,3,7,18,4,true);
-  ctx.fillStyle=hood2; roundedRect(-22,4,8,19,6,true); roundedRect(14,4,8,19,6,true);
-  ctx.fillStyle=skin; circle(-22,22,4); circle(22,22,4);
+  // 身体和尿布/小衣服
+  ctx.fillStyle=cloth; roundedRect(-14,9,28,24,12,true);
+  ctx.fillStyle=diaper; roundedRect(-13,20,26,15,8,true);
+  ctx.strokeStyle='rgba(43,27,43,.25)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-9,24); ctx.lineTo(9,24); ctx.stroke();
 
-  ctx.fillStyle=hood; circle(0,-12,24);
-  ctx.fillStyle=skin; circle(0,-10,18);
-  ctx.fillStyle='#7a5740';
-  ctx.beginPath(); ctx.arc(0,-21,15.5,Math.PI*.05,Math.PI*.95,true); ctx.lineTo(-13,-12); ctx.quadraticCurveTo(-6,-18,0,-11); ctx.quadraticCurveTo(6,-18,13,-12); ctx.closePath(); ctx.fill();
-  ctx.strokeStyle='#7a5740'; ctx.lineWidth=3; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(0,-34); ctx.quadraticCurveTo(7,-41,13,-34); ctx.stroke();
+  // 手脚：短圆，不会像奇怪形状
+  ctx.fillStyle=skin2; circle(-18,17,5.2); circle(18,17,5.2);
+  ctx.fillStyle='#5b486e'; roundedRect(-13,33,10,6,4,true); roundedRect(3,33,10,6,4,true);
 
-  ctx.fillStyle='#251827'; circle(-6,-11,3.0); circle(6,-11,3.0);
-  ctx.fillStyle='#fff'; circle(-7,-12,1.1); circle(5,-12,1.1);
-  ctx.strokeStyle='#7a4550'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,-5,5,.25,Math.PI-.25); ctx.stroke();
-  ctx.fillStyle=blush; circle(-12,-6,3.6); circle(12,-6,3.6);
+  // 脸：大黑眼 + 小泪珠 + 小嘴，偏可爱而不是恶心
+  ctx.fillStyle=line; circle(-7,-11,3.7); circle(7,-11,3.7);
+  ctx.fillStyle='#fff'; circle(-8.1,-12.4,1.2); circle(5.9,-12.4,1.2);
+  ctx.fillStyle='rgba(121,202,255,.85)'; ctx.beginPath(); ctx.ellipse(-11,-4,2.5,4.8,.1,0,TAU); ctx.fill();
+  ctx.strokeStyle='#7b4854'; ctx.lineWidth=2; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,-3,4,.18,Math.PI-.18); ctx.stroke();
+  ctx.fillStyle='rgba(255,116,146,.30)'; circle(-14,-5,3.6); circle(14,-5,3.6);
+
+  // 根据核心BD给角色一点可读变化
+  if(p.weapon==='knife'){ ctx.save(); ctx.translate(20,-26); ctx.rotate(.8+Math.sin(now()*8)*.15); ctx.fillStyle='#ff5f7c'; roundedRect(-4,-12,8,22,4,true); ctx.fillStyle='#ffe3e8'; tri(0,-19,-7,-8,7,-8); ctx.restore(); }
+  if(p.weapon==='beam'){ ctx.strokeStyle='rgba(255,95,140,.78)'; ctx.lineWidth=4; ctx.beginPath(); ctx.arc(0,-10,29,now()*2,now()*2+1.7); ctx.stroke(); }
+  if(p.weapon==='ring'){ ctx.strokeStyle='rgba(141,244,255,.72)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,-10,31,0,TAU); ctx.stroke(); }
+  if(p.flags.s_catSuite){ ctx.fillStyle='#2b1b2b'; tri(-14,-31,-22,-42,-9,-35); tri(14,-31,22,-42,9,-35); ctx.fillStyle='#ffd7bd'; tri(-14,-33,-18,-39,-10,-35); tri(14,-33,18,-39,10,-35); }
 
   if(p.mantleReady){ ctx.strokeStyle='#fff0a6'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+13,0,TAU); ctx.stroke(); }
   if(p.roomShield){ ctx.strokeStyle='#9ad2ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(0,0,p.r+16,0,TAU); ctx.stroke(); }
@@ -1428,6 +1486,8 @@ function drawProjectiles(){
       ctx.stroke(); ctx.restore();
     } else if(pr.type==='knife'){
       if(!drawSprite('knife',pr.x,pr.y,2.5,pr.angle)) { ctx.save(); ctx.translate(pr.x,pr.y); ctx.rotate(pr.angle); ctx.fillStyle='#ff5f7c'; roundedRect(-10,-6,34,12,6,true); ctx.fillStyle='#ffe3e8'; tri(24,0,10,-11,10,11); ctx.restore(); }
+    } else if(pr.type==='catFly'){
+      ctx.save(); ctx.translate(pr.x,pr.y); ctx.rotate(Math.sin(now()*18+pr.x)*.35); ctx.fillStyle='rgba(190,244,255,.72)'; ctx.beginPath(); ctx.ellipse(-7,-3,7,4,-.5,0,TAU); ctx.fill(); ctx.beginPath(); ctx.ellipse(7,-3,7,4,.5,0,TAU); ctx.fill(); ctx.fillStyle='#2b2630'; circle(0,2,6); ctx.fillStyle='#fff'; circle(-2,0,1.4); ctx.restore();
     } else {
       const nm=pr.homing?'homing':pr.pierce?'pierce':'tear'; if(!drawSprite(nm,pr.x,pr.y,Math.max(1.4,pr.r/4.3),pr.angle)) { ctx.fillStyle=pr.homing?'#b8fbff':pr.pierce?'#fff2a7':'#ffc4db'; circle(pr.x,pr.y,pr.r); }
     }
@@ -1530,7 +1590,7 @@ function showGuide(){
     <div class="guideBox"><h3>核心流程</h3><p>探索房间 → 清怪开门 → 宝物房拿BD → Boss → 天使/恶魔强力分叉 → 下一层。共6层。</p><p>宝物房要钥匙；商店花金币；诅咒房会受伤但可能出强力黑暗道具。</p></div>
     <div class="guideBox"><h3>无红伤机制</h3><p>特殊房主要看红心伤害。魂心/黑心挡伤不会破“无红伤”。整层无红伤和Boss无红伤会显著提升特殊门概率。</p><p><span class="holy">天使房</span> 免费强力，偏稳；<span class="danger">恶魔房</span> 用红心上限换爆发。</p></div>
     <div class="guideBox"><h3>操作</h3><p>手机：左摇杆移动，右摇杆射击。默认自动瞄准，朋友用手机点开也能玩。</p><p>电脑：<span class="kbd">WASD</span>移动，鼠标按住/方向键辅助瞄准，<span class="kbd">Space</span>暂停。</p></div>
-    <div class="guideBox"><h3>道具数量</h3><p>当前内置 ${ITEMS.length} 个道具，包含飞刃、光束、环形激光、多重、穿透、追踪、毒火冰、跟班、环绕物、低血狂暴、高血量增伤、无伤成长、复活等BD。</p></div>
+    <div class="guideBox"><h3>道具数量</h3><p>当前内置 ${ITEMS.length} 个道具，包含妈刀系、硫磺火系、科技X系、猫猫套、飞刃、光束、环形激光、多重、穿透、追踪、毒火冰、跟班、环绕物、低血狂暴、高血量增伤、无伤成长、复活等BD。</p></div>
   </div><h3>全部道具</h3><div class="itemList">${list}</div><div class="row" style="margin-top:14px"><button class="bigBtn" data-back-menu="1">返回</button></div>`);
   modal.querySelector('[data-back-menu]').onclick=()=>{ if(state.mode==='menu') location.reload(); else closeModal(); };
 }
